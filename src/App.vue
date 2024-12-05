@@ -1,26 +1,48 @@
 <template>
-  <img alt="Vue logo" src="./assets/logo.png">
-  <HelloWorld msg="Welcome to Your Vue.js App"/>
+  <el-button type="primary" @click="connect">Connect to ftp</el-button>
+  <el-input v-model="username" placeholder="username"></el-input>
+  <el-input v-model="password" placeholder="password"></el-input>
+  <el-button type="primary" @click="login">Login</el-button>
+  <el-button type="primary" @click="quit">Quit</el-button>
+  <el-button type="primary" @click="flushFileLst">List files</el-button>
+  <div class="all-files">
+    <div v-for="(file, index) in allFiles" :key="index">文件{{ index }}: {{ file }}</div>
+  </div>
+  <el-button type="primary" @click="uploadFile">Upload file</el-button>
 </template>
 
-<script>
-import HelloWorld from './components/HelloWorld.vue'
+<script setup>
+import { ipcRenderer } from 'electron';
+import { ref } from 'vue';
 
-export default {
-  name: 'App',
-  components: {
-    HelloWorld
-  }
+const username = ref('');
+const password = ref('');
+const allFiles = ref([]);
+
+const connect = () => {
+  ipcRenderer.invoke('connect-ftp-server', 'localhost', 2121);
+}
+
+const login = () => {
+  ipcRenderer.invoke('login-ftp-server', username.value, password.value);
+}
+
+const quit = () => {
+  username.value = '';
+  password.value = '';
+  ipcRenderer.invoke('quit-ftp-server');
+}
+
+const flushFileLst = async () => {
+  const response = await ipcRenderer.invoke('flush-file-list');
+  console.log(response);
+  allFiles.value = response;
+}
+
+const uploadFile = () => {
+  ipcRenderer.invoke('upload-file', 'D:/test.txt', '/test2.txt');
 }
 </script>
 
-<style>
-#app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-  margin-top: 60px;
-}
+<style scoped>
 </style>
