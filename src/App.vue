@@ -23,14 +23,19 @@
       </div>
     </el-dialog>
     <div class="content-container">
-      <el-badge is-dot :hidden="loginStatus!=='未登录'">
+      <el-badge is-dot :hidden="loginStatus !== '未登录'">
         <div class="login-status" @click="loginDialogVisible = true">登录状态: {{ loginStatus }}</div>
       </el-badge>
       <el-button type="primary" @click="flushFileLst">刷新文件列表</el-button>
-      <div class="all-files">
-        <div v-if="allFiles.length === 0">暂无文件</div>
-        <div v-for="(file, index) in allFiles" :key="index">文件{{ index }}: {{ file }}</div>
-      </div>
+      <el-table :data="parsedFiles" style="width: 100%">
+        <el-table-column prop="permissions" label="权限" width="150"></el-table-column>
+        <el-table-column prop="links" label="链接数" width="100"></el-table-column>
+        <el-table-column prop="owner" label="所有者" width="150"></el-table-column>
+        <el-table-column prop="group" label="组" width="150"></el-table-column>
+        <el-table-column prop="size" label="大小" width="100"></el-table-column>
+        <el-table-column prop="date" label="日期" width="200"></el-table-column>
+        <el-table-column prop="name" label="文件名"></el-table-column>
+      </el-table>
       <el-button type="primary" @click="uploadFile">上传文件</el-button>
     </div>
   </div>
@@ -46,6 +51,7 @@ const password = ref('');
 const allFiles = ref([]);
 const loginStatus = ref('未登录');
 const loginDialogVisible = ref(false);
+const parsedFiles = ref([]);
 
 onMounted(async () => {
   try {
@@ -78,7 +84,8 @@ const flushFileLst = async () => {
   try {
     const response = await ipcRenderer.invoke('flush-file-list');
     console.log(response);
-    allFiles.value = response;
+    allFiles.value = response.slice(0, response.length - 1);
+    parsedFiles.value = parseFiles(allFiles.value);
     ElMessage.success('获取文件列表成功');
   } catch (error) {
     ElMessage.error('获取文件列表失败');
@@ -92,6 +99,21 @@ const uploadFile = () => {
   } catch (error) {
     ElMessage.error('上传文件失败');
   }
+}
+
+const parseFiles = (files) => {
+  return files.map(file => {
+    const parts = file.split(/\s+/);
+    return {
+      permissions: parts[0],
+      links: parts[1],
+      owner: parts[2],
+      group: parts[3],
+      size: parts[4],
+      date: `${parts[5]} ${parts[6]} ${parts[7]}`,
+      name: parts[8]
+    };
+  });
 }
 </script>
 
@@ -144,7 +166,7 @@ const uploadFile = () => {
   top: 50px;
 }
 
-.content-container > * {
+.content-container>* {
   margin-bottom: 20px;
   margin-left: 10px;
 }
