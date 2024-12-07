@@ -1,47 +1,151 @@
 <template>
-  <el-input v-model="username" placeholder="username"></el-input>
-  <el-input v-model="password" placeholder="password"></el-input>
-  <el-button type="primary" @click="login">Login</el-button>
-  <el-button type="primary" @click="quit">Quit</el-button>
-  <el-button type="primary" @click="flushFileLst">List files</el-button>
-  <div class="all-files">
-    <div v-for="(file, index) in allFiles" :key="index">文件{{ index }}: {{ file }}</div>
+  <div class="container">
+    <el-dialog v-model="loginDialogVisible" title="登录">
+      <div class="login-container">
+        <div class="login-username">
+          <el-icon>
+            <User />
+          </el-icon>
+          <span class="login-title">用户名</span>
+          <el-input v-model="username" placeholder="请输入用户名" class="login-input"></el-input>
+        </div>
+        <div class="login-password">
+          <el-icon>
+            <Lock />
+          </el-icon>
+          <span class="login-title">密码</span>
+          <el-input v-model="password" placeholder="请输入密码" class="login-input" show-password></el-input>
+        </div>
+        <div class="login-button-container">
+          <el-button type="success" @click="login" class="login-button">登录</el-button>
+          <el-button type="danger" @click="quit" class="logout-button">退出登录</el-button>
+        </div>
+      </div>
+    </el-dialog>
+    <div class="content-container">
+      <el-badge is-dot :hidden="loginStatus!=='未登录'">
+        <div class="login-status" @click="loginDialogVisible = true">登录状态: {{ loginStatus }}</div>
+      </el-badge>
+      <el-button type="primary" @click="flushFileLst">刷新文件列表</el-button>
+      <div class="all-files">
+        <div v-if="allFiles.length === 0">暂无文件</div>
+        <div v-for="(file, index) in allFiles" :key="index">文件{{ index }}: {{ file }}</div>
+      </div>
+      <el-button type="primary" @click="uploadFile">上传文件</el-button>
+    </div>
   </div>
-  <el-button type="primary" @click="uploadFile">Upload file</el-button>
 </template>
 
 <script setup>
 import { ipcRenderer } from 'electron';
 import { ref, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
 
 const username = ref('');
 const password = ref('');
 const allFiles = ref([]);
+const loginStatus = ref('未登录');
+const loginDialogVisible = ref(false);
 
 onMounted(async () => {
-  await ipcRenderer.invoke('connect-ftp-server', 'localhost', 2121);
+  try {
+    await ipcRenderer.invoke('connect-ftp-server', 'localhost', 2121);
+  } catch (error) {
+    ElMessage.error('连接FTP服务器失败');
+  }
 });
 
 const login = async () => {
-  await ipcRenderer.invoke('login-ftp-server', username.value, password.value);
+  try {
+    await ipcRenderer.invoke('login-ftp-server', username.value, password.value);
+    ElMessage.success('登录FTP服务器成功');
+    loginStatus.value = '已登录';
+    loginDialogVisible.value = false;
+  } catch (error) {
+    ElMessage.error('登录FTP服务器失败');
+  }
 }
 
 const quit = () => {
   username.value = '';
   password.value = '';
   ipcRenderer.invoke('quit-ftp-server');
+  ElMessage.success('退出FTP服务器成功');
+  loginStatus.value = '未登录';
 }
 
 const flushFileLst = async () => {
-  const response = await ipcRenderer.invoke('flush-file-list');
-  console.log(response);
-  allFiles.value = response;
+  try {
+    const response = await ipcRenderer.invoke('flush-file-list');
+    console.log(response);
+    allFiles.value = response;
+    ElMessage.success('获取文件列表成功');
+  } catch (error) {
+    ElMessage.error('获取文件列表失败');
+  }
 }
 
 const uploadFile = () => {
-  ipcRenderer.invoke('upload-file', 'D:/test.txt', '/test2.txt');
+  try {
+    ipcRenderer.invoke('upload-file', 'D:/test.txt', '/test2.txt');
+    ElMessage.success('上传文件成功');
+  } catch (error) {
+    ElMessage.error('上传文件失败');
+  }
 }
 </script>
 
 <style scoped>
+.container {
+  background-color: #FAF9F6;
+}
+
+.login-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+}
+
+.login-username,
+.login-password {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 20px;
+  width: 300px;
+}
+
+.login-title {
+  margin-left: 5px;
+  width: 100px;
+}
+
+.login-button-container {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+
+.login-status {
+  cursor: pointer;
+}
+
+.content-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  position: absolute;
+  top: 50px;
+}
+
+.content-container > * {
+  margin-bottom: 20px;
+  margin-left: 10px;
+}
 </style>
