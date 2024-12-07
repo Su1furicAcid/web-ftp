@@ -1,5 +1,4 @@
 <template>
-  <el-button type="primary" @click="connect">Connect to ftp</el-button>
   <el-input v-model="username" placeholder="username"></el-input>
   <el-input v-model="password" placeholder="password"></el-input>
   <el-button type="primary" @click="login">Login</el-button>
@@ -13,18 +12,18 @@
 
 <script setup>
 import { ipcRenderer } from 'electron';
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 
 const username = ref('');
 const password = ref('');
 const allFiles = ref([]);
 
-const connect = () => {
-  ipcRenderer.invoke('connect-ftp-server', 'localhost', 2121);
-}
+onMounted(async () => {
+  await ipcRenderer.invoke('connect-ftp-server', 'localhost', 2121);
+});
 
-const login = () => {
-  ipcRenderer.invoke('login-ftp-server', username.value, password.value);
+const login = async () => {
+  await ipcRenderer.invoke('login-ftp-server', username.value, password.value);
 }
 
 const quit = () => {

@@ -81,16 +81,19 @@ if (isDevelopment) {
   }
 }
 
-ipcMain.handle('connect-ftp-server', (event, FTP_HOST, FTP_PORT) => {
-  ftpClient.connToFtpSrv(FTP_HOST, FTP_PORT);
+ipcMain.handle('connect-ftp-server', async (event, FTP_HOST, FTP_PORT) => {
+  let response = ftpClient.connToFtpSrv(FTP_HOST, FTP_PORT);
+  return response;
 });
 
-ipcMain.handle('login-ftp-server', (event, username, password) => {
-  ftpClient.login(username, password);
+ipcMain.handle('login-ftp-server', async (event, username, password) => {
+  let response = await ftpClient.login(username, password);
+  return response;
 });
 
-ipcMain.handle('quit-ftp-server', () => {
-  ftpClient.logout();
+ipcMain.handle('quit-ftp-server', async () => {
+  let response = await ftpClient.logout();
+  return response;
 });
 
 ipcMain.handle('flush-file-list', async () => {
@@ -99,5 +102,6 @@ ipcMain.handle('flush-file-list', async () => {
 });
 
 ipcMain.handle('upload-file', async (event, localPath, remotePath) => {
-  ftpClient.uploadFile(localPath, remotePath);
+  let response = ftpClient.uploadFile(localPath, remotePath);
+  return response;
 });

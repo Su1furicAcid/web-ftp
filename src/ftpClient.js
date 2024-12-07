@@ -1,160 +1,163 @@
 const net = require('net');
 const fs = require('fs');
+const util = require('util');
 
 const client = new net.Socket();
-
 let FTP_HOST = '';
 
-// 发送指令
-let sendCmd = (command, callback) => {
+// 使用promisify将回调函数转换为Promise
+const sendCmd = util.promisify((command, callback) => {
     console.log(`Sending command: ${command}`);
     client.write(command + '\r\n');
     client.once('data', (data) => {
-        callback(data);
+        callback(null, data);
     });
-}
+});
 
 // 连接到FTP服务器
-let connToFtpSrv = (host, port) => {
-    FTP_HOST = host;
-    client.connect(port, host, () => {
-        console.log('Connected to FTP server');
-    });
-    client.on('data', (data) => {
-        console.log(`Received data: ${data}`);
-    });
-    client.on('close', () => {
-        console.log('Connection closed');
-    });
-    client.on('error', (err) => {
-        console.error(err);
+const connToFtpSrv = (host, port) => {
+    return new Promise((resolve, reject) => {
+        FTP_HOST = host;
+        client.connect(port, host, () => {
+            console.log('Connected to FTP server');
+            resolve();
+        });
+        client.on('data', (data) => {
+            console.log(`Received data: ${data}`);
+        });
+        client.on('close', () => {
+            console.log('Connection closed');
+        });
+        client.on('error', (err) => {
+            console.error(err);
+            reject(err);
+        });
     });
 };
 
 // 断开连接
-let disconnFromFtpSrv = () => {
+const disconnFromFtpSrv = () => {
     client.end();
 };
 
 // 登录操作
-let login = (username, password) => {
-    sendCmd(`USER ${username}`, (data) => {
-        if (data.toString().startsWith('331')) {
-            sendCmd(`PASS ${password}`, (data) => {
-                if (data.toString().startsWith('230')) {
-                    console.log('Logged in');
-                }
-            });
+const login = async (username, password) => {
+    const userResponse = await sendCmd(`USER ${username}`);
+    if (userResponse.toString().startsWith('331')) {
+        const passResponse = await sendCmd(`PASS ${password}`);
+        if (passResponse.toString().startsWith('230')) {
+            console.log('Logged in');
         }
-    });
-}
+    }
+};
 
 // 登出操作
-let logout = () => {
-    sendCmd('QUIT', (data) => {
-        if (data.toString().startsWith('221')) {
-            console.log('Logged out');
-        }
-    });
-}
+const logout = async () => {
+    const response = await sendCmd('QUIT');
+    if (response.toString().startsWith('221')) {
+        console.log('Logged out');
+    }
+};
 
 // 解析PASV响应
-let parsePasvResp = (data) => {
+const parsePasvResp = (data) => {
     const match = data.match(/\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)/);
     if (match) {
         const port = parseInt(match[5]) * 256 + parseInt(match[6]);
         return port;
     }
     return null;
-}
+};
 
 // 获取文件列表
-async function fetchFileLst() {
-    return new Promise((resolve, reject) => {
+const fetchFileLst = async () => {
     console.log('start fetch file list');
-    let allFiles = [];
-    sendCmd('PASV', (data) => {
-        const port = parsePasvResp(data.toString());
-        if (port) {
-            const pasvClient = new net.Socket();
-            pasvClient.connect(port, FTP_HOST, () => {
-                sendCmd('LIST', () => {
-                    pasvClient.on('data', (data) => {
-                        console.log(`File list: ${data}`);
-                        allFiles = data.toString().split('\r\n');
-                        console.log('allFiles', allFiles);
-                        resolve(allFiles);
-                        pasvClient.end();
-                    });
+    const pasvResponse = await sendCmd('PASV');
+    const port = parsePasvResp(pasvResponse.toString());
+    if (port) {
+        const pasvClient = new net.Socket();
+        return new Promise((resolve, reject) => {
+            pasvClient.connect(port, FTP_HOST, async () => {
+                await sendCmd('LIST');
+                pasvClient.on('data', (data) => {
+                    console.log(`File list: ${data}`);
+                    const files = data.toString().split('\r\n');
+                    console.log('allFiles', files);
+                    resolve(files);
+                    pasvClient.end();
+                });
+                pasvClient.on('error', (err) => {
+                    reject(err);
                 });
             });
-        } else {
-            reject('');
-        }
-    });
-})
-}
+        });
+    } else {
+        throw new Error('Failed to enter passive mode');
+    }
+};
 
 // 上传文件
-let uploadFile = (localPath, remotePath) => {
+const uploadFile = async (localPath, remotePath) => {
     const fileStats = fs.statSync(localPath);
     const fileSize = fileStats.size;
     console.log(`File size: ${fileSize}`);
     const fileStream = fs.createReadStream(localPath);
-    sendCmd('PASV', (data) => {
-        const port = parsePasvResp(data.toString());
-        if (port) {
-            const pasvClient = new net.Socket();
-            pasvClient.connect(port, FTP_HOST, () => {
-                sendCmd(`STOR ${remotePath}`, () => {
-                    fileStream.pipe(pasvClient);
-                    fileStream.on('end', () => {
-                        pasvClient.end();
-                        console.log('File uploaded');
-                    });
-                    fileStream.on('close', () => {
-                        console.log('File transfer complete');
-                    });
-                });
+    const pasvResponse = await sendCmd('PASV');
+    const port = parsePasvResp(pasvResponse.toString());
+    if (port) {
+        const pasvClient = new net.Socket();
+        pasvClient.connect(port, FTP_HOST, async () => {
+            await sendCmd(`STOR ${remotePath}`);
+            fileStream.pipe(pasvClient);
+            fileStream.on('end', () => {
+                pasvClient.end();
+                console.log('File uploaded');
             });
-        }
-    });
+            fileStream.on('close', () => {
+                console.log('File transfer complete');
+            });
+        });
+    }
 };
 
 // 下载文件
-let downloadFile = (remotePath, localPath) => {
-    sendCmd('PASV', (data) => {
-        const port = parsePasvResp(data.toString());
-        if (port) {
-            const pasvClient = new net.Socket();
-            pasvClient.connect(port, FTP_HOST, () => {
-                sendCmd(`RETR ${remotePath}`, () => {
-                    const fileStream = fs.createWriteStream(localPath);
-                    pasvClient.pipe(fileStream);
-                    pasvClient.on('end', () => {
-                        pasvClient.end();
-                        console.log('File downloaded');
-                    });
-                    pasvClient.on('close', () => {
-                        console.log('File transfer complete');
-                    });
-                });
+const downloadFile = async (remotePath, localPath) => {
+    const pasvResponse = await sendCmd('PASV');
+    const port = parsePasvResp(pasvResponse.toString());
+    if (port) {
+        const pasvClient = new net.Socket();
+        pasvClient.connect(port, FTP_HOST, async () => {
+            await sendCmd(`RETR ${remotePath}`);
+            const fileStream = fs.createWriteStream(localPath);
+            pasvClient.pipe(fileStream);
+            pasvClient.on('end', () => {
+                pasvClient.end();
+                console.log('File downloaded');
             });
-        }
-    });
+            pasvClient.on('close', () => {
+                console.log('File transfer complete');
+            });
+        });
+    }
 };
 
 // 断点续传
-let resumeDownload = (remotePath, localPath) => {
+const resumeDownload = async (remotePath, localPath) => {
     const localFileStats = fs.statSync(localPath);
     const localFileSize = localFileStats.size;
-    sendCmd(`REST ${localFileSize}`, (data) => {
-        if (data.toString().startsWith('350')) {
-            downloadFile(remotePath, localPath);
-        }
-    });
+    const restResponse = await sendCmd(`REST ${localFileSize}`);
+    if (restResponse.toString().startsWith('350')) {
+        await downloadFile(remotePath, localPath);
+    }
 };
 
-export default {
-    connToFtpSrv, disconnFromFtpSrv, login, logout, fetchFileLst, uploadFile, downloadFile, resumeDownload
-}
+module.exports = {
+    connToFtpSrv,
+    disconnFromFtpSrv,
+    login,
+    logout,
+    fetchFileLst,
+    uploadFile,
+    downloadFile,
+    resumeDownload
+};
