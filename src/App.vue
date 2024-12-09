@@ -36,6 +36,14 @@
         <el-table-column prop="date" label="日期" width="200"></el-table-column>
         <el-table-column prop="name" label="文件名"></el-table-column>
       </el-table>
+      <el-upload
+        v-model:file-list="fileList"
+        ref="upload"
+        :on-change="appendFileList"
+        :auto-upload="false"
+      >
+        <el-button size="small" type="primary">选择文件</el-button>
+      </el-upload>
       <el-button type="primary" @click="uploadFile">上传文件</el-button>
     </div>
   </div>
@@ -52,6 +60,7 @@ const allFiles = ref([]);
 const loginStatus = ref('未登录');
 const loginDialogVisible = ref(false);
 const parsedFiles = ref([]);
+const fileList = ref([]);
 
 onMounted(async () => {
   try {
@@ -93,11 +102,21 @@ const flushFileLst = async () => {
 }
 
 const uploadFile = () => {
-  try {
-    ipcRenderer.invoke('upload-file', 'D:/test.txt', '/test2.txt');
-    ElMessage.success('上传文件成功');
-  } catch (error) {
-    ElMessage.error('上传文件失败');
+  // try {
+  //   ipcRenderer.invoke('upload-file', 'D:/test.txt', '/test2.txt');
+  //   ElMessage.success('上传文件成功');
+  // } catch (error) {
+  //   ElMessage.error('上传文件失败');
+  // }
+  for (const file of fileList.value) {
+    console.log(file.raw.path);
+    try {
+      ipcRenderer.invoke('upload-file', file.raw.path, `/${file.name}`);
+      ElMessage.success('上传文件成功');
+    } catch (error) {
+      ElMessage.error('上传文件失败');
+      continue;
+    }
   }
 }
 
@@ -114,6 +133,10 @@ const parseFiles = (files) => {
       name: parts[8]
     };
   });
+}
+
+const appendFileList = (file) => {
+  fileList.value.push(file);
 }
 </script>
 
