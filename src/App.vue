@@ -38,16 +38,11 @@
         <el-table-column label="操作" width="100">
           <template #default="{ row }">
             <el-button type="text" size="small" @click="downloadThisFile(row)">下载</el-button>
-            <el-button type="text" size="small">删除</el-button>
+            <el-progress :text-inside="true" :stroke-width="26" :percentage="row.downloadProgress"></el-progress>
           </template>
         </el-table-column>
       </el-table>
-      <el-upload
-        v-model:file-list="fileList"
-        ref="upload"
-        :on-change="appendFileList"
-        :auto-upload="false"
-      >
+      <el-upload v-model:file-list="fileList" ref="upload" :on-change="appendFileList" :auto-upload="false">
         <el-button size="small" type="primary">选择文件</el-button>
       </el-upload>
       <el-button type="primary" @click="uploadFile">上传文件</el-button>
@@ -74,6 +69,13 @@ onMounted(async () => {
   } catch (error) {
     ElMessage.error('连接FTP服务器失败');
   }
+
+  ipcRenderer.on('download-progress', (event, { name, progress }) => {
+    const file = parsedFiles.value.find(file => file.name === name);
+    if (file) {
+      file.downloadProgress = progress;
+    }
+  });
 });
 
 const login = async () => {
@@ -108,12 +110,6 @@ const flushFileLst = async () => {
 }
 
 const uploadFile = () => {
-  // try {
-  //   ipcRenderer.invoke('upload-file', 'D:/test.txt', '/test2.txt');
-  //   ElMessage.success('上传文件成功');
-  // } catch (error) {
-  //   ElMessage.error('上传文件失败');
-  // }
   for (const file of fileList.value) {
     console.log(file.raw.path);
     try {
@@ -136,7 +132,8 @@ const parseFiles = (files) => {
       group: parts[3],
       size: parts[4],
       date: `${parts[5]} ${parts[6]} ${parts[7]}`,
-      name: parts[8]
+      name: parts[8],
+      downloadProgress: 0
     };
   });
 }

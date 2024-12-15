@@ -121,7 +121,7 @@ const uploadFile = async (localPath, remotePath) => {
 };
 
 // 下载文件
-const downloadFile = async (remotePath, localPath) => {
+const downloadFile = async (remotePath, localPath, progressCallback) => {
     const pasvResponse = await sendCmd('PASV');
     const port = parsePasvResp(pasvResponse.toString());
     if (port) {
@@ -129,8 +129,24 @@ const downloadFile = async (remotePath, localPath) => {
         pasvClient.connect(port, FTP_HOST, async () => {
             await sendCmd(`RETR ${remotePath}`);
             const fileStream = fs.createWriteStream(localPath);
+            let downloadedSize = 0;
+
+            const sizeResponse = await sendCmd(`SIZE ${remotePath}`);
+            const totalSize = parseInt(sizeResponse.toString().split(' ')[1]);
+
+            const intervalId = setInterval(() => {
+                const progress = (downloadedSize / totalSize) * 100;
+                if (progressCallback) {
+                    progressCallback(progress.toFixed(2));
+                }
+            }, 200);
+
             pasvClient.pipe(fileStream);
+            pasvClient.on('data', (chunk) => {
+                downloadedSize += chunk.length;
+            });
             pasvClient.on('end', () => {
+                clearInterval(intervalId);
                 pasvClient.end();
                 console.log('File downloaded');
             });

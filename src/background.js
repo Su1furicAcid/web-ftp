@@ -107,6 +107,9 @@ ipcMain.handle('upload-file', async (event, localPath, remotePath) => {
 });
 
 ipcMain.handle('download-file', async (event, localPath, remotePath) => {
-  let response = ftpClient.downloadFile(localPath, remotePath);
+  let response = ftpClient.downloadFile(localPath, remotePath, (progress) => {
+    console.log('progress', progress);
+    event.sender.send('download-progress', progress);
+  });
   return response;
 });
