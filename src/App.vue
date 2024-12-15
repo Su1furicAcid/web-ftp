@@ -35,6 +35,12 @@
         <el-table-column prop="size" label="大小" width="100"></el-table-column>
         <el-table-column prop="date" label="日期" width="200"></el-table-column>
         <el-table-column prop="name" label="文件名"></el-table-column>
+        <el-table-column label="操作" width="100">
+          <template #default="{ row }">
+            <el-button type="text" size="small" @click="downloadThisFile(row)">下载</el-button>
+            <el-button type="text" size="small">删除</el-button>
+          </template>
+        </el-table-column>
       </el-table>
       <el-upload
         v-model:file-list="fileList"
@@ -137,6 +143,15 @@ const parseFiles = (files) => {
 
 const appendFileList = (file) => {
   fileList.value.push(file);
+}
+
+const downloadThisFile = async (fileDescrip) => {
+  try {
+    await ipcRenderer.invoke('download-file', fileDescrip.name, `D:/${fileDescrip.name}`);
+    ElMessage.success('下载文件成功');
+  } catch (error) {
+    ElMessage.error('下载文件失败');
+  }
 }
 </script>
 

@@ -105,3 +105,8 @@ ipcMain.handle('upload-file', async (event, localPath, remotePath) => {
   let response = ftpClient.uploadFile(localPath, remotePath);
   return response;
 });
+
+ipcMain.handle('download-file', async (event, localPath, remotePath) => {
+  let response = ftpClient.downloadFile(localPath, remotePath);
+  return response;
+});
