@@ -37,8 +37,10 @@
         <el-table-column prop="name" label="文件名"></el-table-column>
         <el-table-column label="操作" width="200">
           <template #default="{ row }">
-            <el-button type="text" size="small" @click="downloadThisFile(row)">下载</el-button>
-            <el-button type="text" size="small" @click="pauseDownload">暂停</el-button>
+            <el-button type="text" size="small" @click="downloadThisFile(row)" v-show="row.status === 'cloud'">下载</el-button>
+            <el-button type="text" size="small" @click="resumeThisFile(row)" v-show="row.status === 'paused'">继续</el-button>
+            <el-button type="text" size="small" @click="pauseDownload" v-show="row.status === 'downloading'">暂停</el-button>
+            <el-progress v-if="row.progress" :percentage="row.progress" status="active"></el-progress>
           </template>
         </el-table-column>
       </el-table>
@@ -46,9 +48,6 @@
         <el-button size="small" type="primary">选择文件</el-button>
       </el-upload>
       <el-button type="primary" @click="uploadFile">上传文件</el-button>
-    </div>
-    <div v-show="currentDownloadProgress > 0">
-      <el-progress :percentage="currentDownloadProgress" status="success"></el-progress>
     </div>
   </div>
 </template>
@@ -66,7 +65,7 @@ const loginDialogVisible = ref(false);
 const parsedFiles = ref([]);
 const fileList = ref([]);
 
-let currentDownloadProgress = ref(0);
+let currentDownloadFile = ref({});
 
 onMounted(async () => {
   try {
@@ -77,14 +76,15 @@ onMounted(async () => {
 });
 
 ipcRenderer.on('download-progress', (event, progress) => {
-  console.log('app.vue', progress);
-  currentDownloadProgress.value = progress;
-  let timer = setInterval(() => {
-    if (currentDownloadProgress.value >= 100) {
-      clearInterval(timer);
-      currentDownloadProgress.value = 0;
+  parsedFiles.value = parsedFiles.value.map(file => {
+    if (file.name === currentDownloadFile.value.name) {
+      file.progress = progress;
+      if (progress >= 100) {
+        file.status = 'downloaded';
+      }
     }
-  }, 1000);
+    return file;
+  });
 });
 
 const login = async () => {
@@ -141,7 +141,9 @@ const parseFiles = (files) => {
       group: parts[3],
       size: parts[4],
       date: `${parts[5]} ${parts[6]} ${parts[7]}`,
-      name: parts[8]
+      name: parts[8],
+      progress: 0,
+      status: 'cloud'
     };
   });
 }
@@ -152,7 +154,14 @@ const appendFileList = (file) => {
 
 const downloadThisFile = async (fileDescrip) => {
   try {
-    await ipcRenderer.invoke('download-file', fileDescrip.name, `D:/${fileDescrip.name}`);
+    await ipcRenderer.invoke('download-file', `D:/${fileDescrip.name}`, fileDescrip.name);
+    currentDownloadFile.value = fileDescrip;
+    parseFiles.value = parsedFiles.value.map(file => {
+      if (file.name === fileDescrip.name) {
+        file.status = 'downloading';
+      }
+      return file;
+    });
     ElMessage.success('开始下载文件');
   } catch (error) {
     ElMessage.error('下载文件失败');
@@ -161,10 +170,32 @@ const downloadThisFile = async (fileDescrip) => {
 
 const pauseDownload = async () => {
   try {
-    await ipcRenderer.invoke('pause-download');
+    await ipcRenderer.invoke('pause-download', `D:/${currentDownloadFile.value.name}`, currentDownloadFile.value.name);
+    parseFiles.value = parsedFiles.value.map(file => {
+      if (file.name === currentDownloadFile.value.name) {
+        file.status = 'paused';
+      }
+      return file;
+    });
     ElMessage.success('暂停下载成功');
   } catch (error) {
     ElMessage.error('暂停下载失败');
+  }
+}
+
+const resumeThisFile = async (fileDescrip) => {
+  try {
+    await ipcRenderer.invoke('resume-download', `D:/${fileDescrip.name}`, fileDescrip.name);
+    currentDownloadFile.value = fileDescrip;
+    parseFiles.value = parsedFiles.value.map(file => {
+      if (file.name === fileDescrip.name) {
+        file.status = 'downloading';
+      }
+      return file;
+    });
+    ElMessage.success('继续下载文件');
+  } catch (error) {
+    ElMessage.error('继续下载失败');
   }
 }
 </script>

@@ -121,17 +121,30 @@ const uploadFile = async (localPath, remotePath) => {
 };
 
 // 下载文件
-const downloadFile = async (remotePath, localPath, progressCallback) => {
+const downloadFile = async (localPath, remotePath, progressCallback, resume = false) => {
     await sendCmd('TYPE I');
     const pasvResponse = await sendCmd('PASV');
     const port = parsePasvResp(pasvResponse.toString());
     if (port) {
         const pasvClient = new net.Socket();
         pasvClient.connect(port, FTP_HOST, async () => {
-            await sendCmd(`RETR ${remotePath}`);
-            const fileStream = fs.createWriteStream(localPath);
             let downloadedSize = 0;
+            let fileStream;
 
+            if (resume) {
+                const localFileStats = fs.statSync(localPath);
+                const localFileSize = localFileStats.size;
+                const restResponse = await sendCmd(`REST ${localFileSize}`);
+                console.log('restResponse', restResponse.toString());
+                downloadedSize = localFileSize;
+                fileStream = fs.createWriteStream(localPath, { flags: 'a' });
+            } else {
+                downloadedSize = 0;
+                fileStream = fs.createWriteStream(localPath);
+            }
+
+            await sendCmd(`RETR ${remotePath}`);
+            
             const sizeResponse = await sendCmd(`SIZE ${remotePath}`);
             const totalSize = parseInt(sizeResponse.toString().split(' ')[1]);
 
@@ -148,7 +161,7 @@ const downloadFile = async (remotePath, localPath, progressCallback) => {
                 downloadedSize += chunk.length;
             });
             pasvClient.on('end', () => {
-                if (progressCallback) {
+                if (progressCallback && downloadedSize >= totalSize) {
                     progressCallback(100.00);
                 }
                 clearInterval(intervalId);
@@ -172,13 +185,9 @@ const pauseDownload = async () => {
 }
 
 // 断点续传
-const resumeDownload = async (remotePath, localPath) => {
-    const localFileStats = fs.statSync(localPath);
-    const localFileSize = localFileStats.size;
-    const restResponse = await sendCmd(`REST ${localFileSize}`);
-    if (restResponse.toString().startsWith('350')) {
-        await downloadFile(remotePath, localPath);
-    }
+const resumeDownload = async (localPath, remotePath, progressCallback) => {
+    console.log('Resuming download');
+    await downloadFile(localPath, remotePath, progressCallback, true);
 };
 
 module.exports = {

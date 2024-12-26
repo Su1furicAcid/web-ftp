@@ -120,3 +120,11 @@ ipcMain.handle('pause-download', async () => {
   let response = ftpClient.pauseDownload();
   return response;
 });
+
+ipcMain.handle('resume-download', async (event, localPath, remotePath) => {
+  let response = ftpClient.resumeDownload(localPath, remotePath, (progress) => {
+    console.log('progress', progress);
+    win.webContents.send('download-progress', progress);
+  });
+  return response;
+});
