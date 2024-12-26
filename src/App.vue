@@ -35,10 +35,10 @@
         <el-table-column prop="size" label="大小" width="100"></el-table-column>
         <el-table-column prop="date" label="日期" width="200"></el-table-column>
         <el-table-column prop="name" label="文件名"></el-table-column>
-        <el-table-column label="操作" width="100">
+        <el-table-column label="操作" width="200">
           <template #default="{ row }">
             <el-button type="text" size="small" @click="downloadThisFile(row)">下载</el-button>
-            <el-progress :text-inside="true" :stroke-width="26" :percentage="row.downloadProgress"></el-progress>
+            <el-button type="text" size="small" @click="pauseDownload">暂停</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -46,6 +46,9 @@
         <el-button size="small" type="primary">选择文件</el-button>
       </el-upload>
       <el-button type="primary" @click="uploadFile">上传文件</el-button>
+    </div>
+    <div v-show="currentDownloadProgress > 0">
+      <el-progress :percentage="currentDownloadProgress" status="success"></el-progress>
     </div>
   </div>
 </template>
@@ -63,19 +66,25 @@ const loginDialogVisible = ref(false);
 const parsedFiles = ref([]);
 const fileList = ref([]);
 
+let currentDownloadProgress = ref(0);
+
 onMounted(async () => {
   try {
     await ipcRenderer.invoke('connect-ftp-server', 'localhost', 2121);
   } catch (error) {
     ElMessage.error('连接FTP服务器失败');
   }
+});
 
-  ipcRenderer.on('download-progress', (event, { name, progress }) => {
-    const file = parsedFiles.value.find(file => file.name === name);
-    if (file) {
-      file.downloadProgress = progress;
+ipcRenderer.on('download-progress', (event, progress) => {
+  console.log('app.vue', progress);
+  currentDownloadProgress.value = progress;
+  let timer = setInterval(() => {
+    if (currentDownloadProgress.value >= 100) {
+      clearInterval(timer);
+      currentDownloadProgress.value = 0;
     }
-  });
+  }, 1000);
 });
 
 const login = async () => {
@@ -132,8 +141,7 @@ const parseFiles = (files) => {
       group: parts[3],
       size: parts[4],
       date: `${parts[5]} ${parts[6]} ${parts[7]}`,
-      name: parts[8],
-      downloadProgress: 0
+      name: parts[8]
     };
   });
 }
@@ -145,9 +153,18 @@ const appendFileList = (file) => {
 const downloadThisFile = async (fileDescrip) => {
   try {
     await ipcRenderer.invoke('download-file', fileDescrip.name, `D:/${fileDescrip.name}`);
-    ElMessage.success('下载文件成功');
+    ElMessage.success('开始下载文件');
   } catch (error) {
     ElMessage.error('下载文件失败');
+  }
+}
+
+const pauseDownload = async () => {
+  try {
+    await ipcRenderer.invoke('pause-download');
+    ElMessage.success('暂停下载成功');
+  } catch (error) {
+    ElMessage.error('暂停下载失败');
   }
 }
 </script>

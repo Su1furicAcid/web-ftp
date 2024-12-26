@@ -122,6 +122,7 @@ const uploadFile = async (localPath, remotePath) => {
 
 // 下载文件
 const downloadFile = async (remotePath, localPath, progressCallback) => {
+    await sendCmd('TYPE I');
     const pasvResponse = await sendCmd('PASV');
     const port = parsePasvResp(pasvResponse.toString());
     if (port) {
@@ -136,16 +137,20 @@ const downloadFile = async (remotePath, localPath, progressCallback) => {
 
             const intervalId = setInterval(() => {
                 const progress = (downloadedSize / totalSize) * 100;
+                
                 if (progressCallback) {
                     progressCallback(progress.toFixed(2));
                 }
-            }, 200);
+            }, 100);
 
             pasvClient.pipe(fileStream);
             pasvClient.on('data', (chunk) => {
                 downloadedSize += chunk.length;
             });
             pasvClient.on('end', () => {
+                if (progressCallback) {
+                    progressCallback(100.00);
+                }
                 clearInterval(intervalId);
                 pasvClient.end();
                 console.log('File downloaded');
@@ -156,6 +161,15 @@ const downloadFile = async (remotePath, localPath, progressCallback) => {
         });
     }
 };
+
+// 暂停下载
+const pauseDownload = async () => {
+    const pauseResponse = await sendCmd('ABOR');
+    if (pauseResponse.toString().startsWith('226')) {
+        console.log('Download paused');
+    }
+    return pauseResponse;
+}
 
 // 断点续传
 const resumeDownload = async (remotePath, localPath) => {
@@ -175,5 +189,6 @@ module.exports = {
     fetchFileLst,
     uploadFile,
     downloadFile,
-    resumeDownload
+    resumeDownload,
+    pauseDownload
 };

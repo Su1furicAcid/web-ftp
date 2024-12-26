@@ -11,9 +11,11 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { secure: true, standard: true } }
 ])
 
+let win = null;
+
 async function createWindow() {
   // Create the browser window.
-  const win = new BrowserWindow({
+  win = new BrowserWindow({
     width: 800,
     height: 600,
     webPreferences: {
@@ -109,7 +111,12 @@ ipcMain.handle('upload-file', async (event, localPath, remotePath) => {
 ipcMain.handle('download-file', async (event, localPath, remotePath) => {
   let response = ftpClient.downloadFile(localPath, remotePath, (progress) => {
     console.log('progress', progress);
-    event.sender.send('download-progress', progress);
+    win.webContents.send('download-progress', progress);
   });
+  return response;
+});
+
+ipcMain.handle('pause-download', async () => {
+  let response = ftpClient.pauseDownload();
   return response;
 });
