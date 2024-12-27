@@ -47,7 +47,10 @@
       <el-upload v-model:file-list="fileList" ref="upload" :on-change="appendFileList" :auto-upload="false">
         <el-button size="small" type="primary">选择文件</el-button>
       </el-upload>
-      <el-button type="primary" @click="uploadFile">上传文件</el-button>
+      <div class="el-button-container">
+        <el-button type="primary" @click="uploadFile">上传文件</el-button>
+        <el-progress :percentage="uploadInfo.progress" v-if="uploadInfo.status === 'uploading'"></el-progress>
+      </div>
     </div>
   </div>
 </template>
@@ -64,8 +67,8 @@ const loginStatus = ref('未登录');
 const loginDialogVisible = ref(false);
 const parsedFiles = ref([]);
 const fileList = ref([]);
-
 let currentDownloadFile = ref({});
+let uploadInfo = ref({});
 
 onMounted(async () => {
   try {
@@ -85,6 +88,13 @@ ipcRenderer.on('download-progress', (event, progress) => {
     }
     return file;
   });
+});
+
+ipcRenderer.on('upload-progress', (event, progress) => {
+  uploadInfo.value.progress = progress;
+  if (progress >= 100) {
+    uploadInfo.value.status = 'cloud';
+  }
 });
 
 const login = async () => {
@@ -121,8 +131,14 @@ const flushFileLst = async () => {
 const uploadFile = () => {
   for (const file of fileList.value) {
     console.log(file.raw.path);
+    uploadInfo.value = {
+      progress: 0,
+      status: 'local',
+      localPath: file.raw.path,
+    };
     try {
       ipcRenderer.invoke('upload-file', file.raw.path, `/${file.name}`);
+      uploadInfo.value.status = 'uploading';
       ElMessage.success('上传文件成功');
     } catch (error) {
       ElMessage.error('上传文件失败');

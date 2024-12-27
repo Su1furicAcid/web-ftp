@@ -97,10 +97,9 @@ const fetchFileLst = async () => {
 };
 
 // 上传文件
-const uploadFile = async (localPath, remotePath) => {
+const uploadFile = async (localPath, remotePath, progressCallback) => {
     const fileStats = fs.statSync(localPath);
     const fileSize = fileStats.size;
-    console.log(`File size: ${fileSize}`);
     const fileStream = fs.createReadStream(localPath);
     const pasvResponse = await sendCmd('PASV');
     const port = parsePasvResp(pasvResponse.toString());
@@ -108,8 +107,20 @@ const uploadFile = async (localPath, remotePath) => {
         const pasvClient = new net.Socket();
         pasvClient.connect(port, FTP_HOST, async () => {
             await sendCmd(`STOR ${remotePath}`);
+
+            const intervalId = setInterval(() => {
+                const progress = (fileStream.bytesRead / fileSize) * 100;
+                if (progressCallback) {
+                    progressCallback(progress.toFixed(2));
+                }
+            }, 100);
+
             fileStream.pipe(pasvClient);
             fileStream.on('end', () => {
+                if (progressCallback) {
+                    progressCallback(100.00);
+                }
+                clearInterval(intervalId);
                 pasvClient.end();
                 console.log('File uploaded');
             });

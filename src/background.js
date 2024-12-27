@@ -104,13 +104,16 @@ ipcMain.handle('flush-file-list', async () => {
 });
 
 ipcMain.handle('upload-file', async (event, localPath, remotePath) => {
-  let response = ftpClient.uploadFile(localPath, remotePath);
+  let response = ftpClient.uploadFile(localPath, remotePath, (progress) => {
+    console.log('upload progress', progress);
+    win.webContents.send('upload-progress', progress);
+  });
   return response;
 });
 
 ipcMain.handle('download-file', async (event, localPath, remotePath) => {
   let response = ftpClient.downloadFile(localPath, remotePath, (progress) => {
-    console.log('progress', progress);
+    console.log('download progress', progress);
     win.webContents.send('download-progress', progress);
   });
   return response;
