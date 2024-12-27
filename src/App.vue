@@ -49,7 +49,9 @@
       </el-upload>
       <div class="el-button-container">
         <el-button type="primary" @click="uploadFile">上传文件</el-button>
-        <el-progress :percentage="uploadInfo.progress" v-if="uploadInfo.status === 'uploading'"></el-progress>
+        <el-button type="text" @click="pauseUpload" v-if="uploadInfo.status === 'uploading'">暂停</el-button>
+        <el-button type="text" @click="resumeUpload" v-if="uploadInfo.status === 'paused'">继续</el-button>
+        <el-progress :percentage="uploadInfo.progress" v-if="uploadInfo.status === 'uploading' || uploadInfo.status === 'paused'"></el-progress>
       </div>
     </div>
   </div>
@@ -212,6 +214,26 @@ const resumeThisFile = async (fileDescrip) => {
     ElMessage.success('继续下载文件');
   } catch (error) {
     ElMessage.error('继续下载失败');
+  }
+}
+
+const pauseUpload = async () => {
+  try {
+    await ipcRenderer.invoke('pause-upload', uploadInfo.value.localPath);
+    uploadInfo.value.status = 'paused';
+    ElMessage.success('暂停上传成功');
+  } catch (error) {
+    ElMessage.error('暂停上传失败');
+  }
+}
+
+const resumeUpload = async () => {
+  try {
+    await ipcRenderer.invoke('resume-upload', uploadInfo.value.localPath, `/${uploadInfo.value.localPath.split('\\').pop()}`);
+    uploadInfo.value.status = 'uploading';
+    ElMessage.success('继续上传成功');
+  } catch (error) {
+    ElMessage.error('继续上传失败');
   }
 }
 </script>

@@ -131,3 +131,16 @@ ipcMain.handle('resume-download', async (event, localPath, remotePath) => {
   });
   return response;
 });
+
+ipcMain.handle('pause-upload', async () => {
+  let response = ftpClient.pauseUpload();
+  return response;
+});
+
+ipcMain.handle('resume-upload', async (event, localPath, remotePath) => {
+  let response = ftpClient.resumeUpload(localPath, remotePath, (progress) => {
+    console.log('progress', progress);
+    win.webContents.send('upload-progress', progress);
+  });
+  return response;
+});

@@ -97,34 +97,50 @@ const fetchFileLst = async () => {
 };
 
 // 上传文件
-const uploadFile = async (localPath, remotePath, progressCallback) => {
-    const fileStats = fs.statSync(localPath);
-    const fileSize = fileStats.size;
-    const fileStream = fs.createReadStream(localPath);
+let lastReadPos = 0;
+
+const uploadFile = async (localPath, remotePath, progressCallback, resume = false) => {
+    await sendCmd('TYPE I');
     const pasvResponse = await sendCmd('PASV');
     const port = parsePasvResp(pasvResponse.toString());
     if (port) {
         const pasvClient = new net.Socket();
         pasvClient.connect(port, FTP_HOST, async () => {
-            await sendCmd(`STOR ${remotePath}`);
+            const fileStats = fs.statSync(localPath);
+            const fileSize = fileStats.size;
+            let fileStream;
+
+            if (resume) {
+                const restResponse = await sendCmd(`APPE ${remotePath}`);
+                console.log('restResponse', restResponse.toString());
+                fileStream = fs.createReadStream(localPath, { start: lastReadPos, flags: 'r' , autoClose: true, emitClose: true });
+            } else {
+                await sendCmd(`STOR ${remotePath}`);
+                lastReadPos = 0;
+                fileStream = fs.createReadStream(localPath);
+            }
 
             const intervalId = setInterval(() => {
-                const progress = (fileStream.bytesRead / fileSize) * 100;
+                const progress = (lastReadPos / fileSize) * 100;
                 if (progressCallback) {
                     progressCallback(progress.toFixed(2));
                 }
             }, 100);
 
             fileStream.pipe(pasvClient);
-            fileStream.on('end', () => {
-                if (progressCallback) {
+
+            fileStream.on('data', (chunk) => {
+                lastReadPos += chunk.length;
+            });
+            pasvClient.on('end', () => {
+                if (progressCallback && lastReadPos >= fileSize) {
                     progressCallback(100.00);
                 }
                 clearInterval(intervalId);
                 pasvClient.end();
                 console.log('File uploaded');
             });
-            fileStream.on('close', () => {
+            pasvClient.on('close', () => {
                 console.log('File transfer complete');
             });
         });
@@ -148,7 +164,7 @@ const downloadFile = async (localPath, remotePath, progressCallback, resume = fa
                 const restResponse = await sendCmd(`REST ${localFileSize}`);
                 console.log('restResponse', restResponse.toString());
                 downloadedSize = localFileSize;
-                fileStream = fs.createWriteStream(localPath, { flags: 'a' });
+                fileStream = fs.createWriteStream(localPath, { flags: 'a', autoClose: true });
             } else {
                 downloadedSize = 0;
                 fileStream = fs.createWriteStream(localPath);
@@ -201,6 +217,21 @@ const resumeDownload = async (localPath, remotePath, progressCallback) => {
     await downloadFile(localPath, remotePath, progressCallback, true);
 };
 
+// 暂停上传
+const pauseUpload = async () => {
+    const pauseResponse = await sendCmd('ABOR');
+    if (pauseResponse.toString().startsWith('226')) {
+        console.log('Upload paused');
+    }
+    return pauseResponse;
+}
+
+// 断点续传
+const resumeUpload = async (localPath, remotePath, progressCallback) => {
+    console.log('Resuming upload');
+    await uploadFile(localPath, remotePath, progressCallback, true);
+};
+
 module.exports = {
     connToFtpSrv,
     disconnFromFtpSrv,
@@ -210,5 +241,7 @@ module.exports = {
     uploadFile,
     downloadFile,
     resumeDownload,
-    pauseDownload
+    pauseDownload,
+    resumeUpload,
+    pauseUpload
 };
