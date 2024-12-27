@@ -95,7 +95,10 @@ ipcRenderer.on('download-progress', (event, progress) => {
 ipcRenderer.on('upload-progress', (event, progress) => {
   uploadInfo.value.progress = progress;
   if (progress >= 100) {
-    uploadInfo.value.status = 'cloud';
+    setTimeout(() => {
+      uploadInfo.value.progress = 0;
+      uploadInfo.value.status = 'cloud';
+    }, 500);
   }
 });
 
