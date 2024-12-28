@@ -47,6 +47,7 @@
         <el-table-column prop="name" label="文件名"></el-table-column>
         <el-table-column label="操作" width="200">
           <template #default="{ row }">
+            <el-button type="text" size="small" v-if="row.permissions[0] === 'd'" @click="enterNewFolder(row.name)">打开文件夹</el-button>
             <el-button type="text" size="small" @click="downloadThisFile(row)" v-show="row.status === 'cloud'">下载</el-button>
             <el-button type="text" size="small" @click="resumeThisFile(row)" v-show="row.status === 'paused'">继续</el-button>
             <el-button type="text" size="small" @click="pauseDownload" v-show="row.status === 'downloading'">暂停</el-button>
@@ -159,7 +160,6 @@ const quit = () => {
 const flushFileLst = async () => {
   try {
     const response = await ipcRenderer.invoke('flush-file-list');
-    console.log(response);
     allFiles.value = response.slice(0, response.length - 1);
     parsedFiles.value = parseFiles(allFiles.value);
     ElMessage.success('获取文件列表成功');
@@ -287,10 +287,17 @@ const moveNewDirectory = async () => {
 const moveFatherDirectory = async () => {
   try {
     await ipcRenderer.invoke('move-father-directory');
+    workDirectory.value = workDirectory.value.split('/').slice(0, -2).join('/') + '/';
     ElMessage.success('返回上级目录成功');
   } catch (error) {
     ElMessage.error('返回上级目录失败');
   }
+}
+
+const enterNewFolder = async (folderName) => {
+  workDirectory.value += `${folderName}/`;
+  await moveNewDirectory();
+  await flushFileLst();
 }
 </script>
 
