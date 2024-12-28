@@ -65,10 +65,8 @@
 import { ipcRenderer } from 'electron';
 import { ref, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
-import ElectronStore from 'electron-store';
 import debounce from './utils';
 
-const store = new ElectronStore();
 const username = ref('');
 const password = ref('');
 const allFiles = ref([]);
@@ -81,11 +79,11 @@ let uploadInfo = ref({});
 let downloadPath = ref('');
 
 onMounted(async () => {
-  if (store.has('downloadPath')) {
-    downloadPath.value = store.get('downloadPath');
+  if (localStorage.getItem('downloadPath')) {
+    downloadPath.value = localStorage.getItem('downloadPath');
   } else {
-    store.set('downloadPath', 'D:/');
     downloadPath.value = 'D:/';
+    localStorage.setItem('downloadPath', 'D:/');
   }
   try {
     await ipcRenderer.invoke('connect-ftp-server', 'localhost', 2121);
@@ -96,8 +94,8 @@ onMounted(async () => {
 
 watch(downloadPath, (newVal) => {
   debounce(() => {
-    store.delete('downloadPath');
-    store.set('downloadPath', newVal);
+    localStorage.deleteItem('downloadPath');
+    localStorage.setItem('downloadPath', newVal);
   }, 500);
 });
 
@@ -196,7 +194,7 @@ const appendFileList = (file) => {
 
 const downloadThisFile = async (fileDescrip) => {
   try {
-    await ipcRenderer.invoke('download-file', `D:/${fileDescrip.name}`, fileDescrip.name);
+    await ipcRenderer.invoke('download-file', `${downloadPath.value}/${fileDescrip.name}`, fileDescrip.name);
     currentDownloadFile.value = fileDescrip;
     parseFiles.value = parsedFiles.value.map(file => {
       if (file.name === fileDescrip.name) {
@@ -212,7 +210,7 @@ const downloadThisFile = async (fileDescrip) => {
 
 const pauseDownload = async () => {
   try {
-    await ipcRenderer.invoke('pause-download', `D:/${currentDownloadFile.value.name}`, currentDownloadFile.value.name);
+    await ipcRenderer.invoke('pause-download', `${downloadPath.value}/${currentDownloadFile.value.name}`, currentDownloadFile.value.name);
     parseFiles.value = parsedFiles.value.map(file => {
       if (file.name === currentDownloadFile.value.name) {
         file.status = 'paused';
@@ -227,7 +225,7 @@ const pauseDownload = async () => {
 
 const resumeThisFile = async (fileDescrip) => {
   try {
-    await ipcRenderer.invoke('resume-download', `D:/${fileDescrip.name}`, fileDescrip.name);
+    await ipcRenderer.invoke('resume-download', `${downloadPath.value}/${fileDescrip.name}`, fileDescrip.name);
     currentDownloadFile.value = fileDescrip;
     parseFiles.value = parsedFiles.value.map(file => {
       if (file.name === fileDescrip.name) {
