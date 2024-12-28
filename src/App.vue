@@ -23,6 +23,11 @@
       </div>
     </el-dialog>
     <div class="content-container">
+      <div class="connect-container">
+        <el-input v-model="host" placeholder="请输入主机地址" class="connect-input"></el-input>
+        <el-input v-model="port" placeholder="请输入端口号" class="connect-input"></el-input>
+        <el-button type="success" @click="connectToFtpServer">连接</el-button>
+      </div>
       <el-badge is-dot :hidden="loginStatus !== '未登录'">
         <div class="login-status" @click="loginDialogVisible = true">登录状态: {{ loginStatus }}</div>
       </el-badge>
@@ -47,10 +52,14 @@
         <el-table-column prop="name" label="文件名"></el-table-column>
         <el-table-column label="操作" width="200">
           <template #default="{ row }">
-            <el-button type="text" size="small" v-if="row.permissions[0] === 'd'" @click="enterNewFolder(row.name)">打开文件夹</el-button>
-            <el-button type="text" size="small" @click="downloadThisFile(row)" v-show="row.status === 'cloud'">下载</el-button>
-            <el-button type="text" size="small" @click="resumeThisFile(row)" v-show="row.status === 'paused'">继续</el-button>
-            <el-button type="text" size="small" @click="pauseDownload" v-show="row.status === 'downloading'">暂停</el-button>
+            <el-button type="text" size="small" v-if="row.permissions[0] === 'd'"
+              @click="enterNewFolder(row.name)">打开文件夹</el-button>
+            <el-button type="text" size="small" @click="downloadThisFile(row)"
+              v-show="row.status === 'cloud'">下载</el-button>
+            <el-button type="text" size="small" @click="resumeThisFile(row)"
+              v-show="row.status === 'paused'">继续</el-button>
+            <el-button type="text" size="small" @click="pauseDownload"
+              v-show="row.status === 'downloading'">暂停</el-button>
             <el-progress v-if="row.progress" :percentage="row.progress" status="active"></el-progress>
           </template>
         </el-table-column>
@@ -62,7 +71,8 @@
         <el-button type="primary" @click="uploadFile">上传文件</el-button>
         <el-button type="text" @click="pauseUpload" v-if="uploadInfo.status === 'uploading'">暂停</el-button>
         <el-button type="text" @click="resumeUpload" v-if="uploadInfo.status === 'paused'">继续</el-button>
-        <el-progress :percentage="uploadInfo.progress" v-if="uploadInfo.status === 'uploading' || uploadInfo.status === 'paused'"></el-progress>
+        <el-progress :percentage="uploadInfo.progress"
+          v-if="uploadInfo.status === 'uploading' || uploadInfo.status === 'paused'"></el-progress>
       </div>
     </div>
   </div>
@@ -85,6 +95,8 @@ let currentDownloadFile = ref({});
 let uploadInfo = ref({});
 let downloadPath = ref('D:/');
 let workDirectory = ref('/');
+const host = ref('localhost');
+const port = ref('2121');
 
 onMounted(async () => {
   if (localStorage.getItem('downloadPath')) {
@@ -99,12 +111,6 @@ onMounted(async () => {
   } else {
     workDirectory.value = '/';
     localStorage.setItem('workDirectory', '/');
-  }
-
-  try {
-    await ipcRenderer.invoke('connect-ftp-server', 'localhost', 2121);
-  } catch (error) {
-    ElMessage.error('连接FTP服务器失败');
   }
 });
 
@@ -137,6 +143,16 @@ ipcRenderer.on('upload-progress', (event, progress) => {
     }, 500);
   }
 });
+
+const connectToFtpServer = async () => {
+  try {
+    await ipcRenderer.invoke('connect-ftp-server', host.value, port.value);
+    ElMessage.success('连接FTP服务器成功');
+    loginDialogVisible.value = true;
+  } catch (error) {
+    ElMessage.error('连接FTP服务器失败');
+  }
+}
 
 const login = async () => {
   try {
@@ -304,6 +320,14 @@ const enterNewFolder = async (folderName) => {
 <style scoped>
 .container {
   background-color: #FAF9F6;
+}
+
+.connect-container {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
 .login-container {
