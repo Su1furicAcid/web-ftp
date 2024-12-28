@@ -26,6 +26,10 @@
       <el-badge is-dot :hidden="loginStatus !== '未登录'">
         <div class="login-status" @click="loginDialogVisible = true">登录状态: {{ loginStatus }}</div>
       </el-badge>
+      <div class="download-path">
+        <div>当前下载路径</div>
+        <el-input v-model="downloadPath" placeholder="请输入新的下载路径"></el-input>
+      </div>
       <el-button type="primary" @click="flushFileLst">刷新文件列表</el-button>
       <el-table :data="parsedFiles" style="width: 100%">
         <el-table-column prop="permissions" label="权限" width="150"></el-table-column>
@@ -59,9 +63,12 @@
 
 <script setup>
 import { ipcRenderer } from 'electron';
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
+import ElectronStore from 'electron-store';
+import debounce from './utils';
 
+const store = new ElectronStore();
 const username = ref('');
 const password = ref('');
 const allFiles = ref([]);
@@ -71,13 +78,27 @@ const parsedFiles = ref([]);
 const fileList = ref([]);
 let currentDownloadFile = ref({});
 let uploadInfo = ref({});
+let downloadPath = ref('');
 
 onMounted(async () => {
+  if (store.has('downloadPath')) {
+    downloadPath.value = store.get('downloadPath');
+  } else {
+    store.set('downloadPath', 'D:/');
+    downloadPath.value = 'D:/';
+  }
   try {
     await ipcRenderer.invoke('connect-ftp-server', 'localhost', 2121);
   } catch (error) {
     ElMessage.error('连接FTP服务器失败');
   }
+});
+
+watch(downloadPath, (newVal) => {
+  debounce(() => {
+    store.delete('downloadPath');
+    store.set('downloadPath', newVal);
+  }, 500);
 });
 
 ipcRenderer.on('download-progress', (event, progress) => {
