@@ -24,7 +24,9 @@
     </el-dialog>
     <div class="content-container">
       <div class="connect-container">
+        <div class="conn-title">FTP服务器地址</div>
         <el-input v-model="host" placeholder="请输入主机地址" class="connect-input"></el-input>
+        <div class="conn-title">FTP服务器端口</div>
         <el-input v-model="port" placeholder="请输入端口号" class="connect-input"></el-input>
         <el-button type="success" @click="connectToFtpServer">连接</el-button>
       </div>
@@ -39,7 +41,7 @@
         <div>当前工作目录</div>
         <el-input v-model="workDirectory" placeholder="请输入新的工作目录"></el-input>
         <el-button type="primary" @click="moveNewDirectory">切换工作目录</el-button>
-        <el-button @click="moveFatherDirectory">返回上级目录</el-button>
+        <el-button type="primary" @click="moveFatherDirectory">返回上级目录</el-button>
       </div>
       <el-button type="primary" @click="flushFileLst">刷新文件列表</el-button>
       <el-table :data="parsedFiles" style="width: 100%">
@@ -381,5 +383,10 @@ const enterNewFolder = async (folderName) => {
 .content-container>* {
   margin-bottom: 20px;
   margin-left: 10px;
+}
+
+.conn-title {
+  width: 21vw;
+  margin-right: 10px;
 }
 </style>
