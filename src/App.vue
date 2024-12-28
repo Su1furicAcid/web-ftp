@@ -342,15 +342,19 @@ const enterNewFolder = async (folderName) => {
 .login-password {
   display: flex;
   flex-direction: row;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   margin-bottom: 20px;
   width: 300px;
 }
 
+.login-input {
+  width: 25vw;
+}
+
 .login-title {
   margin-left: 5px;
-  width: 100px;
+  width: 10vw;
 }
 
 .login-button-container {
