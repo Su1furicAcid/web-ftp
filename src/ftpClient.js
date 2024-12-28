@@ -232,6 +232,22 @@ const resumeUpload = async (localPath, remotePath, progressCallback) => {
     await uploadFile(localPath, remotePath, progressCallback, true);
 };
 
+// 切换工作目录
+const changeWorkDir = async (dir) => {
+    const response = await sendCmd(`CWD ${dir}`);
+    if (response.toString().startsWith('250')) {
+        console.log(`Changed working directory to ${dir}`);
+    }
+};
+
+// 返回上级目录
+const changeToParentDir = async () => {
+    const response = await sendCmd('CDUP');
+    if (response.toString().startsWith('250')) {
+        console.log('Changed to parent directory');
+    }
+};
+
 module.exports = {
     connToFtpSrv,
     disconnFromFtpSrv,
@@ -243,5 +259,7 @@ module.exports = {
     resumeDownload,
     pauseDownload,
     resumeUpload,
-    pauseUpload
+    pauseUpload,
+    changeWorkDir,
+    changeToParentDir
 };

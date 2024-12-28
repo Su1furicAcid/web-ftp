@@ -144,3 +144,13 @@ ipcMain.handle('resume-upload', async (event, localPath, remotePath) => {
   });
   return response;
 });
+
+ipcMain.handle('change-work-directory', async (event, dir) => {
+  let response = ftpClient.changeWorkDir(dir);
+  return response;
+});
+
+ipcMain.handle('move-father-directory', async () => {
+  let response = ftpClient.changeToParentDir();
+  return response;
+});

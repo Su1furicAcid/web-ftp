@@ -30,6 +30,12 @@
         <div>当前下载路径</div>
         <el-input v-model="downloadPath" placeholder="请输入新的下载路径"></el-input>
       </div>
+      <div class="work-directory">
+        <div>当前工作目录</div>
+        <el-input v-model="workDirectory" placeholder="请输入新的工作目录"></el-input>
+        <el-button type="primary" @click="moveNewDirectory">切换工作目录</el-button>
+        <el-button @click="moveFatherDirectory">返回上级目录</el-button>
+      </div>
       <el-button type="primary" @click="flushFileLst">刷新文件列表</el-button>
       <el-table :data="parsedFiles" style="width: 100%">
         <el-table-column prop="permissions" label="权限" width="150"></el-table-column>
@@ -76,7 +82,8 @@ const parsedFiles = ref([]);
 const fileList = ref([]);
 let currentDownloadFile = ref({});
 let uploadInfo = ref({});
-let downloadPath = ref('');
+let downloadPath = ref('D:/');
+let workDirectory = ref('/');
 
 onMounted(async () => {
   if (localStorage.getItem('downloadPath')) {
@@ -85,6 +92,14 @@ onMounted(async () => {
     downloadPath.value = 'D:/';
     localStorage.setItem('downloadPath', 'D:/');
   }
+
+  if (localStorage.getItem('workDirectory')) {
+    workDirectory.value = localStorage.getItem('workDirectory');
+  } else {
+    workDirectory.value = '/';
+    localStorage.setItem('workDirectory', '/');
+  }
+
   try {
     await ipcRenderer.invoke('connect-ftp-server', 'localhost', 2121);
   } catch (error) {
@@ -92,11 +107,12 @@ onMounted(async () => {
   }
 });
 
-watch(downloadPath, (newVal) => {
+watch([downloadPath], ([newVal]) => {
+  console.log('change')
   debounce(() => {
-    localStorage.deleteItem('downloadPath');
+    console.log(newVal);
     localStorage.setItem('downloadPath', newVal);
-  }, 500);
+  }, 500)();
 });
 
 ipcRenderer.on('download-progress', (event, progress) => {
@@ -256,6 +272,24 @@ const resumeUpload = async () => {
     ElMessage.success('继续上传成功');
   } catch (error) {
     ElMessage.error('继续上传失败');
+  }
+}
+
+const moveNewDirectory = async () => {
+  try {
+    await ipcRenderer.invoke('change-work-directory', workDirectory.value);
+    ElMessage.success('切换工作目录成功');
+  } catch (error) {
+    ElMessage.error('切换工作目录失败');
+  }
+}
+
+const moveFatherDirectory = async () => {
+  try {
+    await ipcRenderer.invoke('move-father-directory');
+    ElMessage.success('返回上级目录成功');
+  } catch (error) {
+    ElMessage.error('返回上级目录失败');
   }
 }
 </script>
