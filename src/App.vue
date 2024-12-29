@@ -18,7 +18,20 @@
         </div>
         <div class="login-button-container">
           <el-button type="success" @click="login" class="login-button">登录</el-button>
-          <el-button type="danger" @click="quit" class="logout-button">退出登录</el-button>
+        </div>
+      </div>
+    </el-dialog>
+    <el-dialog v-model="folderAddVisible" title="新建文件夹">
+      <div class="login-container">
+        <div class="login-username">
+          <el-icon>
+            <Folder />
+          </el-icon>
+          <span class="login-title">文件夹名</span>
+          <el-input v-model="folderName" placeholder="请输入文件夹名" class="login-input"></el-input>
+        </div>
+        <div class="login-button-container">
+          <el-button type="success" @click="addNewFolder(folderName)" class="login-button">新建</el-button>
         </div>
       </div>
     </el-dialog>
@@ -28,36 +41,60 @@
         <el-input v-model="host" placeholder="请输入主机地址" class="connect-input"></el-input>
         <div class="conn-title">FTP服务器端口</div>
         <el-input v-model="port" placeholder="请输入端口号" class="connect-input"></el-input>
-        <el-button type="success" @click="connectToFtpServer">连接</el-button>
+        <el-button type="success" @click="connectToFtpServer" v-if="loginStatus === '未登录'">现在连接 !</el-button>
+        <el-button type="danger" @click="quit" v-if="loginStatus === '已登录'">退出</el-button>
       </div>
       <el-badge is-dot :hidden="loginStatus !== '未登录'">
         <div class="login-status" @click="loginDialogVisible = true">登录状态: {{ loginStatus }}</div>
       </el-badge>
       <div class="download-path">
-        <div>当前下载路径</div>
+        <div style="width: 200px">下载到本地路径: </div>
         <el-input v-model="downloadPath" placeholder="请输入新的下载路径"></el-input>
       </div>
       <div class="work-directory">
-        <div>当前工作目录</div>
+        <div style="width: 280px">当前工作目录: </div>
         <el-input v-model="workDirectory" placeholder="请输入新的工作目录"></el-input>
-        <el-button type="primary" @click="moveNewDirectory">切换工作目录</el-button>
-        <el-button type="primary" @click="moveFatherDirectory">返回上级目录</el-button>
+        <el-button type="primary" @click="moveNewDirectory">
+          <el-icon>
+            <Switch />
+          </el-icon>
+          切换工作目录
+        </el-button>
+        <el-button type="primary" @click="moveFatherDirectory">
+          <el-icon>
+            <Back />
+          </el-icon>
+          返回上级目录
+        </el-button>
+        <el-button type="primary" @click="flushFileLst">
+          <el-icon>
+            <RefreshRight />
+          </el-icon>
+          刷新文件列表
+        </el-button>
+        <el-button type="primary" @click="flushFileLst">
+          <el-icon>
+            <RefreshRight />
+          </el-icon>
+          刷新文件列表
+        </el-button>
+        <el-button type="success" @click="folderAddVisible = true">
+          <el-icon>
+            <Folder />
+          </el-icon>
+          新建文件夹
+        </el-button>
       </div>
-      <el-button type="primary" @click="flushFileLst">刷新文件列表</el-button>
-      <el-table :data="parsedFiles" style="width: 100%">
-        <el-table-column prop="permissions" label="权限" width="150"></el-table-column>
-        <el-table-column prop="links" label="链接数" width="100"></el-table-column>
-        <el-table-column prop="owner" label="所有者" width="150"></el-table-column>
-        <el-table-column prop="group" label="组" width="150"></el-table-column>
+      <el-table :data="parsedFiles" style="width: 95%; height: 50vh; overflow-y: auto;">
         <el-table-column prop="size" label="大小" width="100"></el-table-column>
-        <el-table-column prop="date" label="日期" width="200"></el-table-column>
+        <el-table-column prop="date" label="修改日期" width="180"></el-table-column>
         <el-table-column prop="name" label="文件名"></el-table-column>
-        <el-table-column label="操作" width="200">
+        <el-table-column label="" width="200">
           <template #default="{ row }">
             <el-button type="text" size="small" v-if="row.permissions[0] === 'd'"
               @click="enterNewFolder(row.name)">打开文件夹</el-button>
             <el-button type="text" size="small" @click="downloadThisFile(row)"
-              v-show="row.status === 'cloud'">下载</el-button>
+              v-show="row.status === 'cloud' && row.permissions[0] !== 'd'">下载</el-button>
             <el-button type="text" size="small" @click="resumeThisFile(row)"
               v-show="row.status === 'paused'">继续</el-button>
             <el-button type="text" size="small" @click="pauseDownload"
@@ -66,15 +103,18 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-upload v-model:file-list="fileList" ref="upload" :on-change="appendFileList" :auto-upload="false">
-        <el-button size="small" type="primary">选择文件</el-button>
-      </el-upload>
-      <div class="el-button-container">
-        <el-button type="primary" @click="uploadFile">上传文件</el-button>
-        <el-button type="text" @click="pauseUpload" v-if="uploadInfo.status === 'uploading'">暂停</el-button>
-        <el-button type="text" @click="resumeUpload" v-if="uploadInfo.status === 'paused'">继续</el-button>
-        <el-progress :percentage="uploadInfo.progress"
-          v-if="uploadInfo.status === 'uploading' || uploadInfo.status === 'paused'"></el-progress>
+      <div class="upload-container">
+        <el-upload v-model:file-list="fileList" ref="upload" :on-change="appendFileList" :auto-upload="false"
+          :limit="1">
+          <el-button size="small" type="text">选择文件</el-button>
+        </el-upload>
+        <div class="el-button-container">
+          <el-button type="success" @click="uploadFile">上传到当前目录</el-button>
+          <el-button type="text" @click="pauseUpload" v-if="uploadInfo.status === 'uploading'">暂停</el-button>
+          <el-button type="text" @click="resumeUpload" v-if="uploadInfo.status === 'paused'">继续</el-button>
+          <el-progress :percentage="uploadInfo.progress"
+            v-if="uploadInfo.status === 'uploading' || uploadInfo.status === 'paused'"></el-progress>
+        </div>
       </div>
     </div>
   </div>
@@ -86,6 +126,7 @@ import { ref, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import debounce from './utils';
 
+const connectStatus = ref('未连接');
 const username = ref('');
 const password = ref('');
 const allFiles = ref([]);
@@ -99,6 +140,8 @@ let downloadPath = ref('D:/');
 let workDirectory = ref('/');
 const host = ref('localhost');
 const port = ref('2121');
+const folderAddVisible = ref(false);
+const folderName = ref('');
 
 onMounted(async () => {
   if (localStorage.getItem('downloadPath')) {
@@ -151,6 +194,7 @@ const connectToFtpServer = async () => {
     await ipcRenderer.invoke('connect-ftp-server', host.value, port.value);
     ElMessage.success('连接FTP服务器成功');
     loginDialogVisible.value = true;
+    connectStatus.value = '已连接';
   } catch (error) {
     ElMessage.error('连接FTP服务器失败');
   }
@@ -195,7 +239,7 @@ const uploadFile = () => {
       localPath: file.raw.path,
     };
     try {
-      ipcRenderer.invoke('upload-file', file.raw.path, `/${file.name}`);
+      ipcRenderer.invoke('upload-file', file.raw.path, `${workDirectory.value}/${file.raw.name}`);
       uploadInfo.value.status = 'uploading';
       ElMessage.success('上传文件成功');
     } catch (error) {
@@ -213,7 +257,13 @@ const parseFiles = (files) => {
       links: parts[1],
       owner: parts[2],
       group: parts[3],
-      size: parts[4],
+      size: (x => {
+        if (x === '0') return '-';
+        if (x < 1024) return `${x}B`;
+        if (x < 1024 * 1024) return `${(x / 1024).toFixed(2)}KB`;
+        if (x < 1024 * 1024 * 1024) return `${(x / 1024 / 1024).toFixed(2)}MB`;
+        return `${(x / 1024 / 1024 / 1024).toFixed(2)}GB`;
+      })(parseInt(parts[4])),
       date: `${parts[5]} ${parts[6]} ${parts[7]}`,
       name: parts[8],
       progress: 0,
@@ -297,6 +347,7 @@ const moveNewDirectory = async () => {
   try {
     await ipcRenderer.invoke('change-work-directory', workDirectory.value);
     ElMessage.success('切换工作目录成功');
+    await flushFileLst();
   } catch (error) {
     ElMessage.error('切换工作目录失败');
   }
@@ -307,6 +358,7 @@ const moveFatherDirectory = async () => {
     await ipcRenderer.invoke('move-father-directory');
     workDirectory.value = workDirectory.value.split('/').slice(0, -2).join('/') + '/';
     ElMessage.success('返回上级目录成功');
+    await flushFileLst();
   } catch (error) {
     ElMessage.error('返回上级目录失败');
   }
@@ -315,7 +367,18 @@ const moveFatherDirectory = async () => {
 const enterNewFolder = async (folderName) => {
   workDirectory.value += `${folderName}/`;
   await moveNewDirectory();
-  await flushFileLst();
+}
+
+const addNewFolder = async (folder) => {
+  try {
+    await ipcRenderer.invoke('add-new-folder', folder);
+    ElMessage.success('新建文件夹成功');
+    folderAddVisible.value = false;
+    folderName.value = '';
+    await flushFileLst();
+  } catch (error) {
+    ElMessage.error('新建文件夹失败');
+  }
 }
 </script>
 
@@ -387,6 +450,38 @@ const enterNewFolder = async (folderName) => {
 
 .conn-title {
   width: 21vw;
+}
+
+.connect-container>div {
   margin-right: 10px;
+}
+
+.work-directory {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.work-directory>div {
+  margin-right: 10px;
+}
+
+.download-path {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.download-path>div {
+  margin-right: 10px;
+}
+
+.upload-container {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
 }
 </style>

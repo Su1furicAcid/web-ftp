@@ -4,13 +4,18 @@ const util = require('util');
 
 const client = new net.Socket();
 let FTP_HOST = '';
+let isCommandRunning = false;
 
 // 使用promisify将回调函数转换为Promise
 const sendCmd = util.promisify((command, callback) => {
     console.log(`Sending command: ${command}`);
+    isCommandRunning = true;
     client.write(command + '\r\n');
     client.once('data', (data) => {
-        callback(null, data);
+        isCommandRunning = false;
+        if (callback) {
+            callback(null, data);
+        }
     });
 });
 
@@ -24,8 +29,10 @@ const connToFtpSrv = (host, port) => {
         });
         // 持久连接
         let keepAlive = setInterval(() => {
-            client.write('NOOP\r\n');
-        }, 10000);
+            if (!isCommandRunning) {
+                client.write('NOOP\r\n');
+            }
+        }, 60000);
 
         client.on('data', (data) => {
             console.log(`Received data: ${data}`);
@@ -103,7 +110,7 @@ const fetchFileLst = async () => {
 };
 
 // 上传文件
-let lastReadPos = 0;
+let lastReadPos = 0; // 上次结束位置
 
 const uploadFile = async (localPath, remotePath, progressCallback, resume = false) => {
     await sendCmd('TYPE I');
@@ -116,7 +123,7 @@ const uploadFile = async (localPath, remotePath, progressCallback, resume = fals
             const fileSize = fileStats.size;
             let fileStream;
 
-            if (resume) {
+            if (resume) { // 如果这个传输是续传的
                 const restResponse = await sendCmd(`APPE ${remotePath}`);
                 console.log('restResponse', restResponse.toString());
                 fileStream = fs.createReadStream(localPath, { start: lastReadPos, flags: 'r' , autoClose: true, emitClose: true });
@@ -126,7 +133,7 @@ const uploadFile = async (localPath, remotePath, progressCallback, resume = fals
                 fileStream = fs.createReadStream(localPath);
             }
 
-            const intervalId = setInterval(() => {
+            const intervalId = setInterval(() => { // 定时器，每100ms检查一次上传进度
                 const progress = (lastReadPos / fileSize) * 100;
                 if (progressCallback) {
                     progressCallback(progress.toFixed(2));
@@ -136,7 +143,7 @@ const uploadFile = async (localPath, remotePath, progressCallback, resume = fals
             fileStream.pipe(pasvClient);
 
             fileStream.on('data', (chunk) => {
-                lastReadPos += chunk.length;
+                lastReadPos += chunk.length; // 更新已读取的字节数
             });
             pasvClient.on('end', () => {
                 if (progressCallback && lastReadPos >= fileSize) {
@@ -254,6 +261,13 @@ const changeToParentDir = async () => {
     }
 };
 
+const makeDir = async (folderName) => {
+    const response = await sendCmd(`MKD ${folderName}`);
+    if (response.toString().startsWith('257')) {
+        console.log(`Created folder ${folderName}`);
+    }
+};
+
 module.exports = {
     connToFtpSrv,
     disconnFromFtpSrv,
@@ -267,5 +281,6 @@ module.exports = {
     resumeUpload,
     pauseUpload,
     changeWorkDir,
-    changeToParentDir
+    changeToParentDir,
+    makeDir
 };

@@ -154,3 +154,8 @@ ipcMain.handle('move-father-directory', async () => {
   let response = ftpClient.changeToParentDir();
   return response;
 });
+
+ipcMain.handle('add-new-folder', async (event, folderName) => {
+  let response = ftpClient.makeDir(folderName);
+  return response;
+});
