@@ -22,10 +22,16 @@ const connToFtpSrv = (host, port) => {
             console.log('Connected to FTP server');
             resolve();
         });
+        // 持久连接
+        let keepAlive = setInterval(() => {
+            client.write('NOOP\r\n');
+        }, 10000);
+
         client.on('data', (data) => {
             console.log(`Received data: ${data}`);
         });
         client.on('close', () => {
+            clearInterval(keepAlive);
             console.log('Connection closed');
         });
         client.on('error', (err) => {
