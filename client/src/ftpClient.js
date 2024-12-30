@@ -64,6 +64,21 @@ const login = async (username, password) => {
     }
 };
 
+// 用户登出
+const userlogout = async () => {
+    try {
+        const response = await sendCmd('REIN');
+        if (response.toString().startsWith('220')) {
+            console.log('User session reinitialized');
+        } else {
+            console.error('Failed to reinitialize user session');
+        }
+    } catch (error) {
+        console.error('Error during user logout:', error);
+        throw error;
+    }
+};
+
 // 登出操作
 const logout = async () => {
     const response = await sendCmd('QUIT');
@@ -157,6 +172,56 @@ const uploadFile = async (localPath, remotePath, progressCallback, resume = fals
                 console.log('File transfer complete');
             });
         });
+    }
+};
+
+// 上传文件（唯一）
+const uploadFileU = async (localPath, progressCallback) => {
+    try {
+        await sendCmd('TYPE I');
+        const pasvResponse = await sendCmd('PASV');
+        const port = parsePasvResp(pasvResponse.toString());
+        if (port) {
+            const pasvClient = new net.Socket();
+            pasvClient.connect(port, FTP_HOST, async () => {
+                const response = await sendCmd('STOU');
+                if (response.toString().startsWith('150')) {
+                    const remoteFileName = response.toString().match(/"([^"]+)"/)[1];
+                    console.log(`Uploading to unique file: ${remoteFileName}`);
+
+                    const fileStream = fs.createReadStream(localPath);
+                    fileStream.on('data', (chunk) => {
+                        pasvClient.write(chunk);
+                        if (progressCallback) {
+                            progressCallback(chunk.length);
+                        }
+                    });
+
+                    fileStream.on('end', () => {
+                        pasvClient.end();
+                    });
+
+                    pasvClient.on('close', () => {
+                        console.log('File transfer complete');
+                    });
+
+                    pasvClient.on('error', (err) => {
+                        console.error('Error during file transfer:', err);
+                    });
+                } else {
+                    console.error('Failed to initiate STOU command:', response.toString());
+                }
+            });
+
+            pasvClient.on('error', (err) => {
+                console.error('Error connecting to PASV port:', err);
+            });
+        } else {
+            console.error('Failed to parse PASV response');
+        }
+    } catch (error) {
+        console.error('Error during file upload:', error);
+        throw error;
     }
 };
 
@@ -405,9 +470,11 @@ module.exports = {
     connToFtpSrv,
     disconnFromFtpSrv,
     login,
+    userlogout,
     logout,
     fetchFileLst,
     uploadFile,
+    uploadFileU,
     downloadFile,
     resumeDownload,
     pauseDownload,

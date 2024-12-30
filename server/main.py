@@ -5,6 +5,7 @@ import logging
 import stat
 import time
 import platform 
+import uuid
 
 # FTP 服务器配置
 FTP_PORT = 2121  # FTP 控制端口
@@ -104,7 +105,19 @@ def handle_client(client_socket, client_address):
                 client_socket.send(b"200 Type set to I.\r\n")
             else:
                 client_socket.send(b"504 Command not implemented for that parameter.\r\n")
-
+        
+        # 处理REIN命令
+        elif data.startswith("REIN"):
+            username = None
+            password = None
+            passive_mode = False
+            data_socket = None
+            rest_offset = 0
+            user_info = None
+            logged_in = False
+            current_directory = os.getcwd()
+            client_socket.send(b"220 Service ready for new user.\r\n")
+        
         # 下载文件
         elif data.startswith("RETR"):
             if not logged_in:
@@ -410,8 +423,18 @@ def handle_client(client_socket, client_address):
             else:
                 client_socket.send(b"550 Failed to change to parent directory.\r\n")
 
-        else:
-            client_socket.send(b"500 Command not understood.\r\n")
+        # 处理STOU命令
+        elif data.startswith("STOU"):
+            if not logged_in:
+                client_socket.send(b"530 Not logged in.\r\n")
+                continue
+            if 'w' not in user_info["permissions"]:
+                client_socket.send(b"550 Permission denied.\r\n")
+                continue
+            unique_filename = str(uuid.uuid4())
+            client_socket.send(f'150 FILE: "{unique_filename}"\r\n'.encode('utf-8'))
+            store_file(client_socket, data_socket, unique_filename, passive_mode, rest_offset, current_directory)
+            rest_offset = 0  # 重置断点
 
 # 进入被动模式
 def enter_passive_mode():

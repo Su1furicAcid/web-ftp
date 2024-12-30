@@ -93,6 +93,11 @@ ipcMain.handle('login-ftp-server', async (event, username, password) => {
   return response;
 });
 
+ipcMain.handle('logout-ftp-server', async () => {
+  let response = await ftpClient.userlogout();
+  return response;
+});
+
 ipcMain.handle('quit-ftp-server', async () => {
   let response = await ftpClient.logout();
   return response;
@@ -105,6 +110,14 @@ ipcMain.handle('flush-file-list', async () => {
 
 ipcMain.handle('upload-file', async (event, localPath, remotePath) => {
   let response = ftpClient.uploadFile(localPath, remotePath, (progress) => {
+    console.log('upload progress', progress);
+    win.webContents.send('upload-progress', progress);
+  });
+  return response;
+});
+
+ipcMain.handle('upload-file-uniquely', async (event, localPath) => {
+  let response = await ftpClient.uploadFileU(localPath, (progress) => {
     console.log('upload progress', progress);
     win.webContents.send('upload-progress', progress);
   });

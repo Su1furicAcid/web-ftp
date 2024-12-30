@@ -18,6 +18,7 @@
         </div>
         <div class="login-button-container">
           <el-button type="success" @click="login" class="login-button">登录</el-button>
+          <el-button type="danger" @click="logout" class="login-button">登出</el-button>
         </div>
       </div>
     </el-dialog>
@@ -110,7 +111,7 @@
         <el-input v-model="downloadPath" placeholder="请输入新的下载路径"></el-input>
       </div>
       <div class="work-directory">
-        <div style="width: 280px">当前工作目录: </div>
+        <div style="width: 320px">当前工作目录: </div>
         <el-input v-model="workDirectory" placeholder="请输入新的工作目录"></el-input>
         <el-button type="primary" @click="moveNewDirectory">
           <el-icon>
@@ -177,7 +178,9 @@
           <el-button type="text" @click="pauseUpload" v-if="uploadInfo.status === 'uploading'">暂停</el-button>
           <el-button type="text" @click="resumeUpload" v-if="uploadInfo.status === 'paused'">继续</el-button>
           <el-progress :percentage="uploadInfo.progress"
-            v-if="uploadInfo.status === 'uploading' || uploadInfo.status === 'paused'"></el-progress>
+            v-if="uploadInfo.status === 'uploading' || uploadInfo.status === 'paused'">
+          </el-progress>
+          <el-button type="success" @click="uploadFileUniquely">唯一上传到当前目录</el-button>
         </div>
       </div>
     </div>
@@ -294,6 +297,16 @@ const login = async () => {
   }
 }
 
+const logout = async () => {
+  try {
+    await ipcRenderer.invoke('logout-ftp-server');
+    ElMessage.success('用户登出成功');
+    loginStatus.value = '未登录';
+  } catch (error) {
+    ElMessage.error('登出FTP服务器失败');
+  }
+}
+
 //SYST
 const getSystemInfo = async () => {
     try {
@@ -346,6 +359,20 @@ const uploadFile = () => {
       ElMessage.success('上传文件成功');
     } catch (error) {
       ElMessage.error('上传文件失败');
+      continue;
+    }
+  }
+}
+
+const uploadFileUniquely = async () => {
+  for (const file of fileList.value) {
+    console.log(file.raw.path);
+    try {
+      await ipcRenderer.invoke('upload-file-uniquely', file.raw.path);
+      ElMessage.success('上传文件成功');
+    } catch (error) {
+      ElMessage.error('上传文件失败');
+      console.error('Error uploading file uniquely:', error);
       continue;
     }
   }
@@ -537,7 +564,6 @@ const removeDirectory = async (dirInfo) => {
         }
     }
 }
-
 
 // 添加获取当前目录的方法
 const getCurrentDirectory = async () => {
