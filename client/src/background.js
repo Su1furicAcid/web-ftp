@@ -159,3 +159,36 @@ ipcMain.handle('add-new-folder', async (event, folderName) => {
   let response = ftpClient.makeDir(folderName);
   return response;
 });
+
+// 在现有的 ipcMain.handle 部分添加dele
+ipcMain.handle('delete-file', async (event, filename) => {
+  try {
+      const response = await ftpClient.deleteFile(filename);
+      return response;
+  } catch (error) {
+      console.error('Error in delete-file handler:', error);
+      throw error;
+  }
+});
+
+// RMD
+ipcMain.handle('remove-directory', async (event, dirName) => {
+  try {
+      const response = await ftpClient.removeDirectory(dirName);
+      return response;
+  } catch (error) {
+      console.error('Error in remove-directory handler:', error);
+      throw error;
+  }
+});
+
+// PWD
+ipcMain.handle('print-working-directory', async () => {
+  try {
+      const response = await ftpClient.printWorkingDirectory();
+      return response;
+  } catch (error) {
+      console.error('Error in print-working-directory handler:', error);
+      throw error;
+  }
+});

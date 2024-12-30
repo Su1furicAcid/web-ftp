@@ -261,6 +261,60 @@ const changeToParentDir = async () => {
     }
 };
 
+// 删除文件（DELE）
+const deleteFile = async (filename) => {
+    try {
+        const response = await sendCmd(`DELE ${filename}`);
+        if (response.toString().startsWith('250')) {
+            console.log(`File ${filename} deleted successfully`);
+            return true;
+        } else {
+            console.error(`Failed to delete file ${filename}`);
+            return false;
+        }
+    } catch (error) {
+        console.error(`Error deleting file: ${error}`);
+        throw error;
+    }
+};
+
+// 添加删除目录的函数(RMD)
+const removeDirectory = async (dirName) => {
+    try {
+        const response = await sendCmd(`RMD ${dirName}`);
+        if (response.toString().startsWith('250')) {
+            console.log(`Directory ${dirName} removed successfully`);
+            return true;
+        } else {
+            console.error(`Failed to remove directory ${dirName}`);
+            return false;
+        }
+    } catch (error) {
+        console.error(`Error removing directory: ${error}`);
+        throw error;
+    }
+};
+
+// 添加获取当前工作目录的函数(PWD)
+const printWorkingDirectory = async () => {
+    try {
+        const response = await sendCmd('PWD');
+        // PWD响应格式通常是 "257 \"/current/path\" is current directory"
+        if (response.toString().startsWith('257')) {
+            const pathMatch = response.toString().match(/"([^"]+)"/);
+            if (pathMatch) {
+                console.log(`Current directory: ${pathMatch[1]}`);
+                return pathMatch[1];
+            }
+        }
+        console.error('Failed to get working directory');
+        return null;
+    } catch (error) {
+        console.error(`Error getting working directory: ${error}`);
+        throw error;
+    }
+};
+
 const makeDir = async (folderName) => {
     const response = await sendCmd(`MKD ${folderName}`);
     if (response.toString().startsWith('257')) {
@@ -282,5 +336,8 @@ module.exports = {
     pauseUpload,
     changeWorkDir,
     changeToParentDir,
+    deleteFile,
+    removeDirectory, 
+    printWorkingDirectory,
     makeDir
 };

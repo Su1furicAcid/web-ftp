@@ -93,12 +93,16 @@
           <template #default="{ row }">
             <el-button type="text" size="small" v-if="row.permissions[0] === 'd'"
               @click="enterNewFolder(row.name)">打开文件夹</el-button>
+            <el-button type="danger" size="small" @click="removeDirectory(row)"
+              v-if="row.permissions[0] === 'd'">删除目录</el-button>
             <el-button type="text" size="small" @click="downloadThisFile(row)"
               v-show="row.status === 'cloud' && row.permissions[0] !== 'd'">下载</el-button>
             <el-button type="text" size="small" @click="resumeThisFile(row)"
               v-show="row.status === 'paused'">继续</el-button>
             <el-button type="text" size="small" @click="pauseDownload"
               v-show="row.status === 'downloading'">暂停</el-button>
+            <el-button type="danger" size="small" @click="deleteFile(row)" 
+              v-if="row.permissions[0] !== 'd'">删除</el-button>
             <el-progress v-if="row.progress" :percentage="row.progress" status="active"></el-progress>
           </template>
         </el-table-column>
@@ -123,7 +127,7 @@
 <script setup>
 import { ipcRenderer } from 'electron';
 import { ref, onMounted, watch } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import debounce from './utils';
 
 const connectStatus = ref('未连接');
@@ -380,6 +384,66 @@ const addNewFolder = async (folder) => {
     ElMessage.error('新建文件夹失败');
   }
 }
+
+// 添加新的删除文件方法
+const deleteFile = async (fileInfo) => {
+  try {
+    // 添加确认对话框
+    await ElMessageBox.confirm(
+      `确定要删除文件 ${fileInfo.name} 吗？`,
+      '警告',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+
+    // 调用删除功能
+    await ipcRenderer.invoke('delete-file', fileInfo.name);
+    ElMessage.success('文件删除成功');
+    
+    // 刷新文件列表
+    await flushFileLst();
+  } catch (error) {
+    if (error !== 'cancel') {  // 忽略用户取消的情况
+      ElMessage.error('删除文件失败');
+      console.error('Error deleting file:', error);
+    }
+  }
+}
+
+// 添加删除目录的方法
+const removeDirectory = async (dirInfo) => {
+  try {
+    // 显示确认对话框
+    await ElMessageBox.confirm(
+      `确定要删除目录 ${dirInfo.name} 吗？\n注意：只能删除空目录`,
+      '警告',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+
+    // 调用删除目录功能
+    const result = await ipcRenderer.invoke('remove-directory', dirInfo.name);
+    
+    if (result) {
+      ElMessage.success('目录删除成功');
+      // 刷新文件列表
+      await flushFileLst();
+    } else {
+      ElMessage.error('目录删除失败');
+    }
+  } catch (error) {
+    if (error !== 'cancel') {  // 忽略用户取消的情况
+      ElMessage.error('删除目录失败：' + (error.message || '未知错误'));
+      console.error('Error removing directory:', error);
+    }
+  }
+}
 </script>
 
 <style scoped>
@@ -483,5 +547,9 @@ const addNewFolder = async (folder) => {
   flex-direction: row;
   align-items: flex-start;
   justify-content: center;
+}
+
+.el-button--danger {
+  margin-left: 10px;
 }
 </style>

@@ -186,6 +186,50 @@ def handle_client(client_socket, client_address):
             else:
                 client_socket.send(b"550 Failed to change directory.\r\n")
 
+        # 添加DELE命令处理
+        elif data.startswith("DELE"):
+            if not logged_in:
+                client_socket.send(b"530 Not logged in.\r\n")
+                continue
+            # 检查用户是否有删除权限
+            if 'd' not in user_info["permissions"]:
+                client_socket.send(b"550 Permission denied.\r\n")
+                continue
+            # 获取要删除的文件名
+            file_name = data.split()[1] if len(data.split()) > 1 else None
+            if not file_name:
+                client_socket.send(b"550 File name not specified.\r\n")
+                continue
+            # 删除文件
+            delete_file(client_socket, file_name, current_directory)
+
+        # 添加RMD命令处理
+        elif data.startswith("RMD"):
+            if not logged_in:
+                client_socket.send(b"530 Not logged in.\r\n")
+                continue
+            # 检查用户是否有删除权限
+            if 'd' not in user_info["permissions"]:
+                client_socket.send(b"550 Permission denied.\r\n")
+                continue
+            # 获取要删除的目录名
+            dir_name = data.split()[1] if len(data.split()) > 1 else None
+            if not dir_name:
+                client_socket.send(b"550 Directory name not specified.\r\n")
+                continue
+            # 删除目录
+            remove_directory(client_socket, dir_name, current_directory)
+
+        # 添加PWD命令处理
+        elif data.startswith("PWD"):
+            if not logged_in:
+                client_socket.send(b"530 Not logged in.\r\n")
+                continue
+            # 发送当前工作目录
+            response = f'257 "{current_directory}" is current directory.\r\n'
+            client_socket.send(response.encode())
+            logging.info(f"PWD command - current directory: {current_directory}")
+
         # 返回父目录
         elif data.startswith("CDUP"):
             if not logged_in:
@@ -327,6 +371,79 @@ def store_file(client_socket, data_socket, file_name, passive_mode, rest_offset,
     except Exception as e:
         client_socket.send(b"550 Failed to store file.\r\n")
         logging.error(f"Error storing file: {e}")
+
+# 添加删除文件的函数
+def delete_file(client_socket, file_name, directory):
+    try:
+        file_path = os.path.join(directory, file_name)
+        
+        # 检查文件是否存在
+        if not os.path.exists(file_path):
+            client_socket.send(b"550 File not found.\r\n")
+            logging.error(f"File not found: {file_path}")
+            return
+            
+        # 检查是否为文件（不是目录）
+        if not os.path.isfile(file_path):
+            client_socket.send(b"550 Not a regular file.\r\n")
+            logging.error(f"Not a regular file: {file_path}")
+            return
+
+        # 尝试删除文件
+        os.remove(file_path)
+        client_socket.send(b"250 File deleted successfully.\r\n")
+        logging.info(f"File deleted: {file_path}")
+
+    except PermissionError:
+        client_socket.send(b"550 Permission denied.\r\n")
+        logging.error(f"Permission denied when deleting file: {file_path}")
+    except Exception as e:
+        client_socket.send(b"550 Delete operation failed.\r\n")
+        logging.error(f"Error deleting file {file_path}: {e}")
+
+# 添加删除目录的函数
+def remove_directory(client_socket, dir_name, current_directory):
+    """
+    删除指定的目录
+    """
+    try:
+        dir_path = os.path.join(current_directory, dir_name)
+        
+        # 安全检查：确保目标路径在允许的目录范围内
+        if not os.path.abspath(dir_path).startswith(os.path.abspath(current_directory)):
+            client_socket.send(b"550 Access denied.\r\n")
+            logging.error(f"Access denied: {dir_path}")
+            return
+
+        # 检查目录是否存在
+        if not os.path.exists(dir_path):
+            client_socket.send(b"550 Directory not found.\r\n")
+            logging.error(f"Directory not found: {dir_path}")
+            return
+            
+        # 检查是否为目录
+        if not os.path.isdir(dir_path):
+            client_socket.send(b"550 Not a directory.\r\n")
+            logging.error(f"Not a directory: {dir_path}")
+            return
+
+        # 检查目录是否为空
+        if os.listdir(dir_path):
+            client_socket.send(b"550 Directory not empty.\r\n")
+            logging.error(f"Directory not empty: {dir_path}")
+            return
+
+        # 尝试删除目录
+        os.rmdir(dir_path)
+        client_socket.send(b"250 Directory successfully removed.\r\n")
+        logging.info(f"Directory removed: {dir_path}")
+
+    except PermissionError:
+        client_socket.send(b"550 Permission denied.\r\n")
+        logging.error(f"Permission denied when removing directory: {dir_path}")
+    except Exception as e:
+        client_socket.send(b"550 Remove directory operation failed.\r\n")
+        logging.error(f"Error removing directory {dir_path}: {e}")
 
 # 启动FTP服务器
 def start_ftp_server():
