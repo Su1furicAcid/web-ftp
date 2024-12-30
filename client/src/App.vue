@@ -27,6 +27,24 @@
       width="30%">
       <span>{{ systemInfo }}</span>
     </el-dialog>
+    <el-dialog v-model="renameDialogVisible" title="重命名文件" width="30%">
+      <div class="rename-container">
+        <div class="rename-item">
+          <span>原文件名：</span>
+          <el-input v-model="oldFileName" disabled></el-input>
+        </div>
+        <div class="rename-item">
+          <span>新文件名：</span>
+          <el-input v-model="newFileName" placeholder="请输入新的文件名"></el-input>
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="renameDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="renameFile">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
     <el-dialog v-model="folderAddVisible" title="新建文件夹">
       <div class="login-container">
         <div class="login-username">
@@ -50,6 +68,39 @@
         <el-button type="success" @click="connectToFtpServer" v-if="loginStatus === '未登录'">现在连接 !</el-button>
         <el-button type="danger" @click="quit" v-if="loginStatus === '已登录'">退出</el-button>
         <el-button type="info"   @click="getSystemInfo" v-if="loginStatus === '已登录'"><el-icon><InfoFilled /></el-icon>系统信息</el-button>
+        <el-button type="success" @click="renameDialogVisible = true">重命名文件</el-button>
+        <div class="structure-container" v-if="loginStatus === '已登录'">
+        <div class="conn-title">文件结构</div>
+        <el-select 
+          v-model="fileStructure" 
+          placeholder="选择文件结构"
+          @change="changeFileStructure"
+          class="structure-select"
+        >
+          <el-option 
+            v-for="item in structureOptions" 
+            :key="item.value" 
+            :label="item.label" 
+            :value="item.value"
+          ></el-option>
+        </el-select>
+      </div>
+      <div class="structure-container" v-if="loginStatus === '已登录'">
+      <div class="conn-title">传输模式</div>
+      <el-select 
+        v-model="transferMode" 
+        placeholder="选择传输模式"
+        @change="changeTransferMode"
+        class="structure-select"
+        >
+          <el-option 
+            v-for="item in modeOptions" 
+            :key="item.value" 
+            :label="item.label" 
+            :value="item.value"
+          ></el-option>
+        </el-select>
+      </div>
       </div>
       <el-badge is-dot :hidden="loginStatus !== '未登录'">
         <div class="login-status" @click="loginDialogVisible = true">登录状态: {{ loginStatus }}</div>
@@ -102,8 +153,10 @@
               @click="enterNewFolder(row.name)">打开文件夹</el-button>
             <el-button type="danger" size="small" @click="removeDirectory(row)"
               v-if="row.permissions[0] === 'd'">删除目录</el-button>
-            <el-button type="text" size="small" @click="downloadThisFile(row)"
+            <el-button type="primary" size="small" @click="downloadThisFile(row)"
               v-show="row.status === 'cloud' && row.permissions[0] !== 'd'">下载</el-button>
+            <el-button type="primary" size="small" @click="showRenameDialog(row)"
+              v-if="row.permissions[0] !== 'd'">重命名</el-button>
             <el-button type="text" size="small" @click="resumeThisFile(row)"
               v-show="row.status === 'paused'">继续</el-button>
             <el-button type="text" size="small" @click="pauseDownload"
@@ -155,6 +208,21 @@ const folderAddVisible = ref(false);
 const folderName = ref('');
 const systemInfo = ref('');
 const systemInfoDialogVisible = ref(false);
+const renameDialogVisible = ref(false);
+const oldFileName = ref('');
+const newFileName = ref('');
+const structureOptions = [
+    { label: 'File', value: 'F' },
+    { label: 'Record', value: 'R' },
+    { label: 'Page', value: 'P' }
+];
+const fileStructure = ref('F');
+const modeOptions = [
+    { label: 'Stream', value: 'S' },
+    { label: 'Block', value: 'B' },
+    { label: 'Compressed', value: 'C' }
+];
+const transferMode = ref('S');
 
 onMounted(async () => {
   if (localStorage.getItem('downloadPath')) {
@@ -208,6 +276,8 @@ const connectToFtpServer = async () => {
     ElMessage.success('连接FTP服务器成功');
     loginDialogVisible.value = true;
     connectStatus.value = '已连接';
+    fileStructure.value = 'F';
+    transferMode.value = 'S';
   } catch (error) {
     ElMessage.error('连接FTP服务器失败');
   }
@@ -245,6 +315,8 @@ const quit = () => {
   username.value = '';
   password.value = '';
   ipcRenderer.invoke('quit-ftp-server');
+  fileStructure.value = 'F';
+  transferMode.value = 'S';
   ElMessage.success('退出FTP服务器成功');
   loginStatus.value = '未登录';
 }
@@ -439,33 +511,33 @@ const deleteFile = async (fileInfo) => {
 
 // 添加删除目录的方法
 const removeDirectory = async (dirInfo) => {
-  try {
-    // 显示确认对话框
-    await ElMessageBox.confirm(
-      `确定要删除目录 ${dirInfo.name} 吗？\n注意：只能删除空目录`,
-      '警告',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    );
-    // 调用删除目录功能
-    const result = await ipcRenderer.invoke('remove-directory', dirInfo.name);
-    if (result) {
-      ElMessage.success('目录删除成功');
-      // 刷新文件列表
-      await flushFileLst();
-    } else {
-      ElMessage.error('目录删除失败');
+    try {
+        await ElMessageBox.confirm(
+            `确定要删除目录 ${dirInfo.name} 吗？\n注意：只能删除空目录`,
+            '警告',
+            {
+                confirmButtonText: '确定',
+                cancelButtonText: '取消',
+                type: 'warning',
+            }
+        );
+
+        const result = await ipcRenderer.invoke('remove-directory', dirInfo.name);
+        
+        if (result) {
+            ElMessage.success('目录删除成功');
+            await flushFileLst();  // 刷新文件列表
+        } else {
+            ElMessage.error('目录删除失败');
+        }
+    } catch (error) {
+        if (error !== 'cancel') {
+            ElMessage.error('删除目录失败：' + (error.message || '未知错误'));
+            console.error('Error removing directory:', error);
+        }
     }
-  } catch (error) {
-    if (error !== 'cancel') {  // 忽略用户取消的情况
-      ElMessage.error('删除目录失败：' + (error.message || '未知错误'));
-      console.error('Error removing directory:', error);
-    }
-  }
 }
+
 
 // 添加获取当前目录的方法
 const getCurrentDirectory = async () => {
@@ -481,6 +553,66 @@ const getCurrentDirectory = async () => {
     ElMessage.error('获取当前目录失败：' + error.message);
     console.error('Error getting current directory:', error);
   }
+}
+
+const showRenameDialog = (row) => {
+    oldFileName.value = row.name;
+    newFileName.value = '';
+    renameDialogVisible.value = true;
+}
+
+const renameFile = async () => {
+    try {
+        if (!newFileName.value) {
+            ElMessage.warning('请输入新的文件名');
+            return;
+        }
+        await ipcRenderer.invoke('rename-file', oldFileName.value, newFileName.value);
+        ElMessage.success('文件重命名成功');
+        renameDialogVisible.value = false;      
+        // 刷新文件列表
+        await flushFileLst();
+    } catch (error) {
+        ElMessage.error('重命名失败：' + error.message);
+    }
+}
+
+//STRU
+const changeFileStructure = async (structure) => {
+    try {
+        const response = await ipcRenderer.invoke('set-file-structure', structure);
+        if (response) {
+            ElMessage.success(`文件结构已设置为 ${
+                structureOptions.find(opt => opt.value === structure).label
+            }`);
+        } else {
+            ElMessage.error('设置文件结构失败');
+            fileStructure.value = 'F'; // 重置为默认值
+        }
+    } catch (error) {
+        ElMessage.error('设置文件结构失败：' + error.message);
+        fileStructure.value = 'F'; // 重置为默认值
+        console.error('Error changing file structure:', error);
+    }
+}
+
+//MODE
+const changeTransferMode = async (mode) => {
+    try {
+        const response = await ipcRenderer.invoke('set-transfer-mode', mode);
+        if (response) {
+            ElMessage.success(`传输模式已设置为 ${
+                modeOptions.find(opt => opt.value === mode).label
+            }`);
+        } else {
+            ElMessage.error('设置传输模式失败');
+            transferMode.value = 'S'; // 重置为默认值
+        }
+    } catch (error) {
+        ElMessage.error('设置传输模式失败：' + error.message);
+        transferMode.value = 'S'; // 重置为默认值
+        console.error('Error changing transfer mode:', error);
+    }
 }
 </script>
 
@@ -593,5 +725,41 @@ const getCurrentDirectory = async () => {
 
 .el-button--info {
     margin-left: 10px;
+}
+
+.rename-container {
+    padding: 20px;
+}
+
+.rename-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.rename-item span {
+    width: 80px;
+    margin-right: 10px;
+}
+
+.dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.connect-container .el-select {
+    margin-left: 10px;
+    width: 120px;
+}
+
+.structure-container {
+    display: flex;
+    align-items: center;
+    margin-left: 20px;  /* 整个组件与左侧的间距 */
+}
+
+.structure-select {
+    width: 120px;
+    margin-left: 0px;  /* 下拉框紧贴标签，不需要额外间距 */
 }
 </style>

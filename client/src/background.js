@@ -203,3 +203,36 @@ ipcMain.handle('get-system-info', async () => {
       throw error;
   }
 });
+
+// 添加RNFR、RNTO处理
+ipcMain.handle('rename-file', async (event, oldName, newName) => {
+  try {
+      const response = await ftpClient.renameFile(oldName, newName);
+      return response;
+  } catch (error) {
+      console.error('Error in rename-file handler:', error);
+      throw error;
+  }
+});
+
+//STRU
+ipcMain.handle('set-file-structure', async (event, structure) => {
+  try {
+      const response = await ftpClient.setFileStructure(structure);
+      return response;
+  } catch (error) {
+      console.error('Error in set-file-structure handler:', error);
+      throw error;
+  }
+});
+
+//MODE
+ipcMain.handle('set-transfer-mode', async (event, mode) => {
+  try {
+      const response = await ftpClient.setTransferMode(mode);
+      return response;
+  } catch (error) {
+      console.error('Error in set-transfer-mode handler:', error);
+      throw error;
+  }
+});

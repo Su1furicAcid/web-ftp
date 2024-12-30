@@ -208,18 +208,50 @@ def handle_client(client_socket, client_address):
         elif data.startswith("RMD"):
             if not logged_in:
                 client_socket.send(b"530 Not logged in.\r\n")
+                logging.error("Attempt to remove directory without login")
                 continue
             # 检查用户是否有删除权限
             if 'd' not in user_info["permissions"]:
                 client_socket.send(b"550 Permission denied.\r\n")
+                logging.error(f"User {username} attempted to remove directory without permission")
                 continue
-            # 获取要删除的目录名
-            dir_name = data.split()[1] if len(data.split()) > 1 else None
-            if not dir_name:
-                client_socket.send(b"550 Directory name not specified.\r\n")
-                continue
-            # 删除目录
-            remove_directory(client_socket, dir_name, current_directory)
+            try:
+                # 获取目录名
+                dir_name = data.split()[1]
+                dir_path = os.path.join(current_directory, dir_name)
+                # 安全检查：确保目标路径在允许的目录范围内
+                if not os.path.abspath(dir_path).startswith(os.path.abspath(current_directory)):
+                    client_socket.send(b"550 Access denied.\r\n")
+                    logging.error(f"Access denied: {dir_path}")
+                    continue
+                # 检查目录是否存在
+                if not os.path.exists(dir_path):
+                    client_socket.send(b"550 Directory not found.\r\n")
+                    logging.error(f"Directory not found: {dir_path}")
+                    continue
+                # 检查是否为目录
+                if not os.path.isdir(dir_path):
+                    client_socket.send(b"550 Not a directory.\r\n")
+                    logging.error(f"Not a directory: {dir_path}")
+                    continue
+                # 检查目录是否为空
+                if os.listdir(dir_path):
+                    client_socket.send(b"550 Directory not empty.\r\n")
+                    logging.error(f"Directory not empty: {dir_path}")
+                    continue
+                # 尝试删除目录
+                os.rmdir(dir_path)
+                client_socket.send(b"250 Directory successfully removed.\r\n")
+                logging.info(f"Directory removed: {dir_path}")
+            except IndexError:
+                client_socket.send(b"500 Syntax error, directory name required.\r\n")
+                logging.error("RMD command received without directory name")
+            except PermissionError:
+                client_socket.send(b"550 Permission denied.\r\n")
+                logging.error(f"Permission denied when removing directory: {dir_path}")
+            except Exception as e:
+                client_socket.send(b"550 Remove directory operation failed.\r\n")
+                logging.error(f"Error removing directory {dir_path}: {e}")
 
         # 添加PWD命令处理
         elif data.startswith("PWD"):
@@ -244,6 +276,127 @@ def handle_client(client_socket, client_address):
             response = f"215 {system_info} Type: {version_info}\r\n"  # 构建响应
             client_socket.send(response.encode())
             logging.info(f"SYST command received, responding with system type: {response.strip()}")
+
+        # 处理 RNFR 命令（重命名源文件）
+        elif data.startswith("RNFR"):
+            if not logged_in:
+                client_socket.send(b"530 Not logged in.\r\n")
+                continue
+            # 检查用户是否有写权限
+            if 'w' not in user_info["permissions"]:
+                client_socket.send(b"550 Permission denied.\r\n")
+                logging.error(f"User {username} attempted to rename file without permission")
+                continue
+            # 获取要重命名的文件名
+            try:
+                filename = data.split()[1]
+                file_path = os.path.join(current_directory, filename)
+                # 检查文件是否存在
+                if not os.path.exists(file_path):
+                    client_socket.send(b"550 File not found.\r\n")
+                    logging.error(f"File not found for rename: {file_path}")
+                    continue
+                # 存储要重命名的文件路径
+                current_rename_file = file_path
+                client_socket.send(b"350 Ready for RNTO.\r\n")
+                logging.info(f"RNFR received for file: {filename}")
+            except IndexError:
+                client_socket.send(b"500 Syntax error, filename required.\r\n")
+                logging.error("RNFR command received without filename")
+            except Exception as e:
+                client_socket.send(b"550 RNFR failed.\r\n")
+                logging.error(f"Error in RNFR command: {e}")
+
+        # 处理 RNTO 命令（重命名目标文件）
+        elif data.startswith("RNTO"):
+            if not logged_in:
+                client_socket.send(b"530 Not logged in.\r\n")
+                continue
+            # 检查是否先执行了 RNFR
+            if current_rename_file is None:
+                client_socket.send(b"503 RNFR required first.\r\n")
+                logging.error("RNTO command received without prior RNFR")
+                continue
+            try:
+                # 获取新文件名
+                new_filename = data.split()[1]
+                new_path = os.path.join(current_directory, new_filename)
+                # 检查新文件名是否已存在
+                if os.path.exists(new_path):
+                    client_socket.send(b"550 File already exists.\r\n")
+                    logging.error(f"Target file already exists: {new_path}")
+                    current_rename_file = None  # 重置重命名状态
+                    continue
+                # 执行重命名操作
+                os.rename(current_rename_file, new_path)
+                client_socket.send(b"250 Rename successful.\r\n")
+                logging.info(f"File renamed from {current_rename_file} to {new_path}")
+            except IndexError:
+                client_socket.send(b"500 Syntax error, filename required.\r\n")
+                logging.error("RNTO command received without filename")
+            except OSError as e:
+                client_socket.send(f"550 Rename failed: {str(e)}.\r\n".encode())
+                logging.error(f"Error renaming file: {e}")
+            except Exception as e:
+                client_socket.send(b"550 Rename operation failed.\r\n")
+                logging.error(f"Unexpected error in RNTO command: {e}")
+            finally:
+                current_rename_file = None  # 重置重命名状态
+
+        # 处理 STRU 命令
+        elif data.startswith("STRU"):
+            if not logged_in:
+                client_socket.send(b"530 Not logged in.\r\n")
+                logging.error("Attempt to set structure without login")
+                continue
+
+            try:
+                # 获取请求的结构类型
+                structure = data.split()[1].upper()
+                # 检查结构类型是否有效
+                if structure not in ['F', 'R', 'P']:
+                    client_socket.send(b"504 Structure type not implemented.\r\n")
+                    logging.error(f"Invalid structure type requested: {structure}")
+                    continue
+                # 设置文件结构
+                file_structure = structure
+                response = f"200 Structure set to {structure}.\r\n"
+                client_socket.send(response.encode())
+                logging.info(f"File structure set to: {structure}")
+
+            except IndexError:
+                client_socket.send(b"501 Syntax error in parameters or arguments.\r\n")
+                logging.error("STRU command received without structure type")
+            except Exception as e:
+                client_socket.send(b"550 Error setting structure.\r\n")
+                logging.error(f"Error in STRU command: {e}")
+
+        # 处理 MODE 命令
+        elif data.startswith("MODE"):
+            if not logged_in:
+                client_socket.send(b"530 Not logged in.\r\n")
+                logging.error("Attempt to set mode without login")
+                continue
+            try:
+                # 获取请求的传输模式
+                mode = data.split()[1].upper()
+
+                # 检查模式是否有效
+                if mode not in ['S', 'B', 'C']:
+                    client_socket.send(b"504 Mode type not implemented.\r\n")
+                    logging.error(f"Invalid mode type requested: {mode}")
+                    continue
+                # 设置传输模式
+                transfer_mode = mode
+                response = f"200 Mode set to {mode}.\r\n"
+                client_socket.send(response.encode())
+                logging.info(f"Transfer mode set to: {mode}")
+            except IndexError:
+                client_socket.send(b"501 Syntax error in parameters or arguments.\r\n")
+                logging.error("MODE command received without mode type")
+            except Exception as e:
+                client_socket.send(b"550 Error setting mode.\r\n")
+                logging.error(f"Error in MODE command: {e}")
 
         # 返回父目录
         elif data.startswith("CDUP"):

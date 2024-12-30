@@ -315,7 +315,7 @@ const printWorkingDirectory = async () => {
     }
 };
 
-// 添加获取系统信息的函数
+// 添加获取系统信息的函数(SYST)
 const getSystemInfo = async () => {
     try {
         const response = await sendCmd('SYST');
@@ -328,6 +328,68 @@ const getSystemInfo = async () => {
         return null;
     } catch (error) {
         console.error(`Error getting system information: ${error}`);
+        throw error;
+    }
+};
+
+// 添加重命名文件的函数(RNFR、RNTO)
+const renameFile = async (oldName, newName) => {
+    try {
+        // 发送 RNFR 命令
+        const rnfrResponse = await sendCmd(`RNFR ${oldName}`);
+        if (!rnfrResponse.toString().startsWith('350')) {
+            throw new Error('RNFR command failed');
+        }
+
+        // 发送 RNTO 命令
+        const rntoResponse = await sendCmd(`RNTO ${newName}`);
+        if (!rntoResponse.toString().startsWith('250')) {
+            throw new Error('RNTO command failed');
+        }
+
+        console.log(`File renamed from ${oldName} to ${newName}`);
+        return true;
+    } catch (error) {
+        console.error(`Error renaming file: ${error}`);
+        throw error;
+    }
+};
+
+// STRU
+const setFileStructure = async (structure) => {
+    try {
+        const response = await sendCmd(`STRU ${structure}`);
+        const responseStr = response.toString();
+        console.log('STRU command response:', responseStr); // 添加日志
+
+        if (responseStr.startsWith('200')) {
+            console.log(`File structure set to ${structure}`);
+            return true;
+        } else {
+            console.error(`Failed to set file structure: ${responseStr}`);
+            throw new Error(responseStr);
+        }
+    } catch (error) {
+        console.error(`Error setting file structure: ${error}`);
+        throw error;
+    }
+};
+
+// MODE
+const setTransferMode = async (mode) => {
+    try {
+        const response = await sendCmd(`MODE ${mode}`);
+        const responseStr = response.toString();
+        console.log('MODE command response:', responseStr); // 添加日志
+        if (responseStr.startsWith('200')) {
+            console.log(`Transfer mode set to ${mode}`);
+            return true;
+        } else {
+            console.error(`Failed to set transfer mode: ${responseStr}`);
+            throw new Error(responseStr);
+        }
+    } catch (error) {
+        console.error(`Error setting transfer mode: ${error}`);
         throw error;
     }
 };
@@ -357,5 +419,8 @@ module.exports = {
     removeDirectory, 
     printWorkingDirectory,
     getSystemInfo,
+    renameFile,
+    setFileStructure,
+    setTransferMode,
     makeDir
 };
