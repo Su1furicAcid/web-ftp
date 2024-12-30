@@ -21,6 +21,12 @@
         </div>
       </div>
     </el-dialog>
+    <el-dialog
+      v-model="systemInfoDialogVisible"
+      title="FTP服务器系统信息"
+      width="30%">
+      <span>{{ systemInfo }}</span>
+    </el-dialog>
     <el-dialog v-model="folderAddVisible" title="新建文件夹">
       <div class="login-container">
         <div class="login-username">
@@ -43,6 +49,7 @@
         <el-input v-model="port" placeholder="请输入端口号" class="connect-input"></el-input>
         <el-button type="success" @click="connectToFtpServer" v-if="loginStatus === '未登录'">现在连接 !</el-button>
         <el-button type="danger" @click="quit" v-if="loginStatus === '已登录'">退出</el-button>
+        <el-button type="info"   @click="getSystemInfo" v-if="loginStatus === '已登录'"><el-icon><InfoFilled /></el-icon>系统信息</el-button>
       </div>
       <el-badge is-dot :hidden="loginStatus !== '未登录'">
         <div class="login-status" @click="loginDialogVisible = true">登录状态: {{ loginStatus }}</div>
@@ -72,17 +79,17 @@
           </el-icon>
           刷新文件列表
         </el-button>
-        <el-button type="primary" @click="flushFileLst">
-          <el-icon>
-            <RefreshRight />
-          </el-icon>
-          刷新文件列表
-        </el-button>
         <el-button type="success" @click="folderAddVisible = true">
           <el-icon>
             <Folder />
           </el-icon>
           新建文件夹
+        </el-button>
+        <el-button type="primary" @click="getCurrentDirectory">
+          <el-icon>
+            <Location />
+          </el-icon>
+          获取当前目录
         </el-button>
       </div>
       <el-table :data="parsedFiles" style="width: 95%; height: 50vh; overflow-y: auto;">
@@ -146,6 +153,8 @@ const host = ref('localhost');
 const port = ref('2121');
 const folderAddVisible = ref(false);
 const folderName = ref('');
+const systemInfo = ref('');
+const systemInfoDialogVisible = ref(false);
 
 onMounted(async () => {
   if (localStorage.getItem('downloadPath')) {
@@ -213,6 +222,23 @@ const login = async () => {
   } catch (error) {
     ElMessage.error('登录FTP服务器失败');
   }
+}
+
+//SYST
+const getSystemInfo = async () => {
+    try {
+        const response = await ipcRenderer.invoke('get-system-info');
+        if (response) {
+            systemInfo.value = response;
+            systemInfoDialogVisible.value = true;
+            ElMessage.success('获取系统信息成功');
+        } else {
+            ElMessage.error('获取系统信息失败');
+        }
+    } catch (error) {
+        ElMessage.error('获取系统信息失败：' + error.message);
+        console.error('Error getting system info:', error);
+    }
 }
 
 const quit = () => {
@@ -398,11 +424,9 @@ const deleteFile = async (fileInfo) => {
         type: 'warning',
       }
     );
-
     // 调用删除功能
     await ipcRenderer.invoke('delete-file', fileInfo.name);
     ElMessage.success('文件删除成功');
-    
     // 刷新文件列表
     await flushFileLst();
   } catch (error) {
@@ -426,10 +450,8 @@ const removeDirectory = async (dirInfo) => {
         type: 'warning',
       }
     );
-
     // 调用删除目录功能
     const result = await ipcRenderer.invoke('remove-directory', dirInfo.name);
-    
     if (result) {
       ElMessage.success('目录删除成功');
       // 刷新文件列表
@@ -442,6 +464,22 @@ const removeDirectory = async (dirInfo) => {
       ElMessage.error('删除目录失败：' + (error.message || '未知错误'));
       console.error('Error removing directory:', error);
     }
+  }
+}
+
+// 添加获取当前目录的方法
+const getCurrentDirectory = async () => {
+  try {
+    const response = await ipcRenderer.invoke('print-working-directory');
+    if (response) {
+      workDirectory.value = response;
+      ElMessage.success('获取当前目录成功');
+    } else {
+      ElMessage.error('获取当前目录失败');
+    }
+  } catch (error) {
+    ElMessage.error('获取当前目录失败：' + error.message);
+    console.error('Error getting current directory:', error);
   }
 }
 </script>
@@ -551,5 +589,9 @@ const removeDirectory = async (dirInfo) => {
 
 .el-button--danger {
   margin-left: 10px;
+}
+
+.el-button--info {
+    margin-left: 10px;
 }
 </style>

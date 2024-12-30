@@ -4,6 +4,7 @@ import threading
 import logging
 import stat
 import time
+import platform 
 
 # FTP 服务器配置
 FTP_PORT = 2121  # FTP 控制端口
@@ -225,10 +226,24 @@ def handle_client(client_socket, client_address):
             if not logged_in:
                 client_socket.send(b"530 Not logged in.\r\n")
                 continue
-            # 发送当前工作目录
-            response = f'257 "{current_directory}" is current directory.\r\n'
+            try:
+                # 发送当前工作目录
+                # FTP标准规定PWD响应格式为: 257 "/path" is current directory
+                response = f'257 "{current_directory}" is current directory.\r\n'
+                client_socket.send(response.encode())
+                logging.info(f"PWD command - current directory: {current_directory}")
+            except Exception as e:
+                client_socket.send(b"550 Failed to get current directory.\r\n")
+                logging.error(f"Error in PWD command: {e}")
+
+        #SYST命令处理
+        elif data.startswith("SYST"):
+            # 获取系统信息
+            system_info = platform.system()  # 获取操作系统名称
+            version_info = platform.version()  # 获取操作系统版本
+            response = f"215 {system_info} Type: {version_info}\r\n"  # 构建响应
             client_socket.send(response.encode())
-            logging.info(f"PWD command - current directory: {current_directory}")
+            logging.info(f"SYST command received, responding with system type: {response.strip()}")
 
         # 返回父目录
         elif data.startswith("CDUP"):

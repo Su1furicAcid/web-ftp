@@ -192,3 +192,14 @@ ipcMain.handle('print-working-directory', async () => {
       throw error;
   }
 });
+
+// 添加SYST命令处理
+ipcMain.handle('get-system-info', async () => {
+  try {
+      const response = await ftpClient.getSystemInfo();
+      return response;
+  } catch (error) {
+      console.error('Error in get-system-info handler:', error);
+      throw error;
+  }
+});

@@ -315,6 +315,23 @@ const printWorkingDirectory = async () => {
     }
 };
 
+// 添加获取系统信息的函数
+const getSystemInfo = async () => {
+    try {
+        const response = await sendCmd('SYST');
+        if (response.toString().startsWith('215')) {
+            // 215 是SYST命令的标准成功响应代码
+            console.log(`System info: ${response.toString()}`);
+            return response.toString().substring(4); // 去掉"215 "前缀
+        }
+        console.error('Failed to get system information');
+        return null;
+    } catch (error) {
+        console.error(`Error getting system information: ${error}`);
+        throw error;
+    }
+};
+
 const makeDir = async (folderName) => {
     const response = await sendCmd(`MKD ${folderName}`);
     if (response.toString().startsWith('257')) {
@@ -339,5 +356,6 @@ module.exports = {
     deleteFile,
     removeDirectory, 
     printWorkingDirectory,
+    getSystemInfo,
     makeDir
 };
