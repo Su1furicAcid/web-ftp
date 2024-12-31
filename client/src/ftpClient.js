@@ -125,9 +125,18 @@ const fetchFileLst = async () => {
 };
 
 // 上传文件
-let lastReadPos = 0; // 上次结束位置
-
 const uploadFile = async (localPath, remotePath, progressCallback, resume = false) => {
+    let lastReadPos = 0;
+    if (resume) {
+        // 获取远程文件大小
+        const sizeResponse = await sendCmd(`SIZE ${remotePath}`);
+        const sizeStr = sizeResponse.toString();
+        if (sizeStr.startsWith('213')) {
+            const remoteSize = parseInt(sizeStr.split(' ')[1]);
+            lastReadPos = remoteSize;
+            console.log(`Remote file size: ${remoteSize}`);
+        }
+    }
     await sendCmd('TYPE I');
     const pasvResponse = await sendCmd('PASV');
     const port = parsePasvResp(pasvResponse.toString());
@@ -139,12 +148,12 @@ const uploadFile = async (localPath, remotePath, progressCallback, resume = fals
             let fileStream;
 
             if (resume) { // 如果这个传输是续传的
-                const restResponse = await sendCmd(`APPE ${remotePath}`);
+                const restResponse = await sendCmd(`REST ${lastReadPos}`);
                 console.log('restResponse', restResponse.toString());
                 fileStream = fs.createReadStream(localPath, { start: lastReadPos, flags: 'r' , autoClose: true, emitClose: true });
+                await sendCmd(`STOR ${remotePath}`); // 发送STOR命令
             } else {
                 await sendCmd(`STOR ${remotePath}`);
-                lastReadPos = 0;
                 fileStream = fs.createReadStream(localPath);
             }
 
