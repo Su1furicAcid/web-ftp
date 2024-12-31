@@ -69,7 +69,6 @@
         <el-button type="success" @click="connectToFtpServer" v-if="loginStatus === '未登录'">现在连接 !</el-button>
         <el-button type="danger" @click="quit" v-if="loginStatus === '已登录'">退出</el-button>
         <el-button type="info"   @click="getSystemInfo" v-if="loginStatus === '已登录'"><el-icon><InfoFilled /></el-icon>系统信息</el-button>
-        <el-button type="success" @click="renameDialogVisible = true">重命名文件</el-button>
         <div class="structure-container" v-if="loginStatus === '已登录'">
         <div class="conn-title">文件结构</div>
         <el-select 
@@ -148,22 +147,22 @@
         <el-table-column prop="size" label="大小" width="100"></el-table-column>
         <el-table-column prop="date" label="修改日期" width="180"></el-table-column>
         <el-table-column prop="name" label="文件名"></el-table-column>
-        <el-table-column label="" width="200">
+        <el-table-column label="" width="300">
           <template #default="{ row }">
-            <el-button type="text" size="small" v-if="row.permissions[0] === 'd'"
+            <el-button type="success" size="small" v-if="row.permissions[0] === 'd'"
               @click="enterNewFolder(row.name)">打开文件夹</el-button>
             <el-button type="danger" size="small" @click="removeDirectory(row)"
               v-if="row.permissions[0] === 'd'">删除目录</el-button>
             <el-button type="primary" size="small" @click="downloadThisFile(row)"
               v-show="row.status === 'cloud' && row.permissions[0] !== 'd'">下载</el-button>
-            <el-button type="primary" size="small" @click="showRenameDialog(row)"
-              v-if="row.permissions[0] !== 'd'">重命名</el-button>
+            <el-button type="warning" size="small" @click="showRenameDialog(row)"
+              v-if="row.permissions[0] !== 'd' && row.status != 'downloading' && row.status != 'paused'">重命名</el-button>
             <el-button type="text" size="small" @click="resumeThisFile(row)"
               v-show="row.status === 'paused'">继续</el-button>
             <el-button type="text" size="small" @click="pauseDownload"
               v-show="row.status === 'downloading'">暂停</el-button>
             <el-button type="danger" size="small" @click="deleteFile(row)" 
-              v-if="row.permissions[0] !== 'd'">删除</el-button>
+              v-if="row.permissions[0] !== 'd' && row.status != 'downloading' && row.status != 'paused'">删除</el-button>
             <el-progress v-if="row.progress" :percentage="row.progress" status="active"></el-progress>
           </template>
         </el-table-column>
